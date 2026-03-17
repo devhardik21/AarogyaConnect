@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import symptomRoutes from './routes/symptomRoutes.js';
 import doctorRoutes from './routes/doctorRoutes.js';
 import vitalRoutes from './routes/vitalRoutes.js';
+import authRoutes from './routes/authRoutes.js';
 
 dotenv.config();
 
@@ -18,7 +19,7 @@ app.use(express.json());
 // ─── Database Connection ───────────────────────────────────────────────────────
 mongoose
     .connect(process.env.MONGO_URI || 'mongodb://localhost:27017/arogyaconnect')
-    .then(() => console.log('✅  MongoDB connected → arogyaconnect'))
+    .then(() => console.log(`✅  MongoDB connected → ${process.env.MONGO_URI}`))
     .catch(err => console.error('❌  MongoDB error:', err.message));
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
@@ -27,6 +28,7 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok', app: 'ArogyaConne
 app.use('/api/symptoms', symptomRoutes);
 app.use('/api/doctors', doctorRoutes);
 app.use('/api/vitals', vitalRoutes);
+app.use('/api/auth', authRoutes);
 
 // ─── Gemini AI Proxy (stub — wire the Gemini SDK here) ────────────────────────
 // Connect Gemini here

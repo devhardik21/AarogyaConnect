@@ -30,38 +30,68 @@ function BodyMesh({ partId, active, onClick, color }) {
 
 // A simple schematic human figure
 function HumanFigure({ selectedPart, onSelect }) {
-    const c = { normal: '#94a3b8', selected: '#ef4444', highlighted: '#fca5a5' };
+    const c = { normal: '#94a3b8', selected: '#ef4444', emissive: '#1e293b' };
 
-    const Part = ({ pid, position, args, geo = 'box' }) => {
+    const Part = ({ pid, position, args, geo = 'box', rotation = [0, 0, 0] }) => {
         const isActive = selectedPart === pid;
         return (
             <mesh
                 position={position}
+                rotation={rotation}
                 onClick={e => { e.stopPropagation(); onSelect(pid); }}
             >
                 {geo === 'sphere' && <sphereGeometry args={args} />}
                 {geo === 'box' && <boxGeometry args={args} />}
                 {geo === 'cylinder' && <cylinderGeometry args={args} />}
                 <meshStandardMaterial
-                    color={isActive ? '#ef4444' : c.normal}
-                    emissive={isActive ? '#ef4444' : '#475569'}
-                    emissiveIntensity={isActive ? 0.6 : 0.05}
-                    roughness={0.5}
-                    metalness={0.1}
+                    color={isActive ? c.selected : c.normal}
+                    emissive={isActive ? c.selected : c.emissive}
+                    emissiveIntensity={isActive ? 0.6 : 0.1}
+                    roughness={0.2}
+                    metalness={0.2}
+                    transparent
+                    opacity={0.9}
                 />
+
+                {isActive && (
+                    <group position={[0, 0, 0.2]}>
+                        <mesh>
+                            <sphereGeometry args={[0.08, 16, 16]} />
+                            <meshBasicMaterial color="#ef4444" />
+                        </mesh>
+                    </group>
+                )}
             </mesh>
         );
     };
 
     return (
-        <group position={[0, 0.3, 0]} scale={1.1}>
-            <Part pid="head" position={[0, 1.9, 0]} args={[0.37, 32, 32]} geo="sphere" />
-            <Part pid="chest" position={[0, 0.9, 0]} args={[0.85, 1.1, 0.4]} geo="box" />
-            <Part pid="abdomen" position={[0, 0.0, 0]} args={[0.78, 0.45, 0.38]} geo="box" />
-            <Part pid="leftArm" position={[-0.72, 0.75, 0]} args={[0.22, 0.22, 1.15, 32, 1]} geo="cylinder" />
-            <Part pid="rightArm" position={[0.72, 0.75, 0]} args={[0.22, 0.22, 1.15, 32, 1]} geo="cylinder" />
-            <Part pid="leg" position={[-0.23, -0.88, 0]} args={[0.26, 0.26, 1.45, 32, 1]} geo="cylinder" />
-            <Part pid="leg" position={[0.23, -0.88, 0]} args={[0.26, 0.26, 1.45, 32, 1]} geo="cylinder" />
+        <group position={[0, -0.2, 0]} scale={1.1}>
+            {/* Head */}
+            <Part pid="head" position={[0, 2.3, 0]} args={[0.3, 0.38, 0.28, 32]} geo="sphere" />
+
+            {/* Neck */}
+            <Part pid="neck" position={[0, 1.95, 0]} args={[0.12, 0.15, 0.3, 32]} geo="cylinder" />
+
+            {/* Torso */}
+            <group position={[0, 1.2, 0]}>
+                <Part pid="chest" position={[0, 0.4, 0]} args={[0.45, 0.35, 0.6, 32]} geo="cylinder" rotation={[0, 0, Math.PI / 2]} />
+                <Part pid="abdomen" position={[0, 0, 0]} args={[0.35, 0.42, 0.8, 32]} geo="cylinder" />
+            </group>
+
+            {/* Arms */}
+            <Part pid="leftArm" position={[-0.6, 1.2, 0]} args={[0.1, 0.12, 0.8, 32]} geo="cylinder" />
+            <Part pid="rightArm" position={[0.6, 1.2, 0]} args={[0.1, 0.12, 0.8, 32]} geo="cylinder" />
+
+            {/* Legs */}
+            <group position={[-0.25, 0.4, 0]}>
+                <Part pid="leg" position={[0, -0.4, 0]} args={[0.1, 0.18, 0.9, 32]} geo="cylinder" />
+                <Part pid="leg" position={[0, -1.2, 0]} args={[0.08, 0.12, 0.8, 32]} geo="cylinder" />
+            </group>
+            <group position={[0.25, 0.4, 0]}>
+                <Part pid="leg" position={[0, -0.4, 0]} args={[0.1, 0.18, 0.9, 32]} geo="cylinder" />
+                <Part pid="leg" position={[0, -1.2, 0]} args={[0.08, 0.12, 0.8, 32]} geo="cylinder" />
+            </group>
         </group>
     );
 }
@@ -114,8 +144,8 @@ export default function BodySelector({ selectedPart, setSelectedPart, bodyZone, 
                             key={z}
                             onClick={() => setBodyZone(z)}
                             className={`px-4 py-2 rounded-full text-sm font-semibold border transition-all ${bodyZone === z
-                                    ? 'bg-green-500 border-green-500 text-white green-shadow'
-                                    : 'bg-white border-gray-200 text-gray-700 hover:border-green-300'
+                                ? 'bg-green-500 border-green-500 text-white green-shadow'
+                                : 'bg-white border-gray-200 text-gray-700 hover:border-green-300'
                                 }`}
                         >
                             {z}

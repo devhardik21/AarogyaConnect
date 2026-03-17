@@ -4,39 +4,53 @@ import VideoDoctorTab from './pages/VideoDoctorTab';
 import VitalsTab from './pages/VitalsTab';
 import EventsTab from './pages/EventsTab';
 import EmergencyTab from './pages/EmergencyTab';
+import LoginPatient from './pages/LoginPatient';
+import LoginDoctor from './pages/LoginDoctor';
+import VideoCall from './pages/VideoCall';
 import BottomNav from './components/BottomNav';
 import { AnimatePresence } from 'framer-motion';
+import { useAuth } from './context/AuthContext';
 
 function AnimatedRoutes() {
   const location = useLocation();
+  const { user } = useAuth();
+
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
-        <Route path="/ai-doctor" element={<AIDoctorTab />} />
-        <Route path="/video" element={<VideoDoctorTab />} />
-        <Route path="/vitals" element={<VitalsTab />} />
-        <Route path="/events" element={<EventsTab />} />
-        <Route path="/emergency" element={<EmergencyTab />} />
-        <Route path="/" element={<Navigate to="/ai-doctor" replace />} />
+        {/* Auth Routes */}
+        <Route path="/login/patient" element={<LoginPatient />} />
+        <Route path="/login/doctor" element={<LoginDoctor />} />
+
+        {/* Protected App Routes */}
+        <Route path="/ai-doctor" element={user ? <AIDoctorTab /> : <Navigate to="/login/patient" />} />
+        <Route path="/video" element={user ? <VideoDoctorTab /> : <Navigate to="/login/patient" />} />
+        <Route path="/vitals" element={user ? <VitalsTab /> : <Navigate to="/login/patient" />} />
+        <Route path="/events" element={user ? <EventsTab /> : <Navigate to="/login/patient" />} />
+        <Route path="/emergency" element={user ? <EmergencyTab /> : <Navigate to="/login/patient" />} />
+
+        {/* Special Video Call route (dynamic ID) */}
+        <Route path="/video-call/:channelId" element={user ? <VideoCall /> : <Navigate to="/login/patient" />} />
+
+        <Route path="/" element={<Navigate to={user ? "/ai-doctor" : "/login/patient"} replace />} />
       </Routes>
     </AnimatePresence>
   );
 }
 
 function App() {
+  const { user } = useAuth();
+
   return (
     <Router>
-      {/* Full screen container — matches phone frame */}
       <div className="fixed inset-0 flex justify-center bg-gray-200">
         <div className="relative w-full max-w-md h-full bg-white flex flex-col shadow-2xl overflow-hidden">
-
-          {/* Main scrollable area (each tab manages its own scroll) */}
           <div className="flex-1 overflow-hidden">
             <AnimatedRoutes />
           </div>
 
-          {/* Fixed bottom navigation */}
-          <BottomNav />
+          {/* Only show bottom nav if logged in and not in a call */}
+          {user && <BottomNav />}
         </div>
       </div>
     </Router>
