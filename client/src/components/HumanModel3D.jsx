@@ -1,143 +1,99 @@
-import React, { useRef } from 'react';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Html } from '@react-three/drei';
-import * as THREE from 'three';
+import React from 'react';
+import anatomyFront from '../assets/human_anatomy_front.png';
 
-function HumanBodyPart({ position, args, color, activeColor, name, setActivePart, activePart, geometry = 'box', rotation = [0, 0, 0] }) {
-    const mesh = useRef();
+// ─── Body Region (invisible unless active) ──────────────────────────────
+function BodyRegion({ d, name, activePart, setActivePart }) {
     const isActive = activePart === name;
-    const isBonesMode = activePart === 'Bones';
-
     return (
-        <mesh
-            ref={mesh}
-            position={position}
-            rotation={rotation}
+        <path
+            d={d}
+            fill={isActive ? 'rgba(239,68,68,0.2)' : 'transparent'}
+            stroke={isActive ? '#ef4444' : 'transparent'}
+            strokeWidth={isActive ? 1.5 : 0}
+            style={{
+                cursor: 'pointer',
+                filter: isActive ? 'drop-shadow(0 0 6px rgba(239,68,68,0.5))' : 'none',
+                transition: 'all 0.25s ease',
+            }}
             onClick={(e) => {
                 e.stopPropagation();
                 setActivePart(isActive ? null : name);
             }}
-        >
-            {geometry === 'box' && <boxGeometry args={args} />}
-            {geometry === 'sphere' && <sphereGeometry args={args} />}
-            {geometry === 'cylinder' && <cylinderGeometry args={args} />}
-            {geometry === 'lathe' && <cylinderGeometry args={args} />}
-
-            <meshStandardMaterial
-                color={isActive ? activeColor : (isBonesMode ? '#ffffff' : color)}
-                emissive={isActive ? activeColor : (isBonesMode ? '#cbd5e1' : '#1e293b')}
-                emissiveIntensity={isActive ? 0.8 : 0.1}
-                transparent
-                opacity={isBonesMode ? 0.3 : 0.9}
-                roughness={0.1}
-                metalness={0.2}
-            />
-
-            {/* Anatomical Hotspot indicator if active */}
-            {isActive && (
-                <group position={[0, 0, 0.2]}>
-                    <mesh>
-                        <sphereGeometry args={[0.08, 16, 16]} />
-                        <meshBasicMaterial color="#ef4444" />
-                    </mesh>
-                    <mesh scale={[1.5, 1.5, 1.5]}>
-                        <sphereGeometry args={[0.08, 16, 16]} />
-                        <meshBasicMaterial color="#ef4444" transparent opacity={0.3} />
-                    </mesh>
-                </group>
-            )}
-
-            {isActive && (
-                <Html distanceFactor={10} position={[0, 0.5, 0]} center>
-                    <div className="bg-red-500 text-white text-[10px] px-2 py-1 rounded-full shadow-lg whitespace-nowrap animate-pulse font-bold pointer-events-none border border-white/20 backdrop-blur-sm">
-                        {name}
-                    </div>
-                </Html>
-            )}
-        </mesh>
+        />
     );
 }
 
+// ─── Main 2D Realistic Human Model ──────────────────────────────────────
 export default function HumanModel3D({ activePart, setActivePart }) {
     return (
-        <div className="w-full h-[45vh] bg-gradient-to-b from-[#f8fafc] to-[#e2e8f0] relative rounded-b-[40px] overflow-hidden shadow-inner border-b border-white">
-            {/* Glassy overlay background element */}
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.8),transparent)] pointer-events-none" />
+        <div
+            style={{
+                width: '100%',
+                height: '45vh',
+                background: 'linear-gradient(180deg, #f8fafc 0%, #ffffff 100%)',
+                borderRadius: '0 0 1.5rem 1.5rem',
+                overflow: 'hidden',
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: 'inset 0 4px 12px rgba(0,0,0,0.05)'
+            }}
+        >
+            {/* Anatomy Image — fills container vertically */}
+            <img
+                src={anatomyFront}
+                alt="Human Anatomy"
+                style={{
+                    height: '95%',
+                    width: 'auto',
+                    objectFit: 'contain',
+                    pointerEvents: 'none',
+                    opacity: 0.95,
+                    filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.1)) brightness(1.02)',
+                }}
+            />
 
-            <Canvas camera={{ position: [0, 1.2, 5], fov: 40 }} shadows>
-                <ambientLight intensity={0.4} />
-                <pointLight position={[10, 10, 10]} intensity={1.5} />
-                <pointLight position={[-10, 5, 5]} intensity={0.5} color="#4ade80" />
-                <spotLight position={[0, 5, 0]} intensity={0.8} angle={0.5} penumbra={1} castShadow />
+            {/* Interactive SVG Overlay */}
+            <svg
+                viewBox="0 0 200 420"
+                preserveAspectRatio="xMidYMid meet"
+                style={{
+                    position: 'absolute',
+                    top: 0, left: 0,
+                    width: '100%', height: '100%',
+                    zIndex: 10,
+                }}
+            >
+                <BodyRegion name="Head" activePart={activePart} setActivePart={setActivePart}
+                    d="M100 12 C84 12 73 25 73 40 C73 56 84 68 100 68 C116 68 127 56 127 40 C127 25 116 12 100 12 Z" />
+                <BodyRegion name="Neck" activePart={activePart} setActivePart={setActivePart}
+                    d="M91 68 L91 82 Q100 88 109 82 L109 68 Q100 65 91 68 Z" />
+                <BodyRegion name="Chest" activePart={activePart} setActivePart={setActivePart}
+                    d="M62 86 C56 90 52 98 52 112 L52 172 L100 176 L148 172 L148 112 C148 98 144 90 138 86 Z" />
+                <BodyRegion name="Abdomen" activePart={activePart} setActivePart={setActivePart}
+                    d="M56 172 L56 220 Q100 230 144 220 L144 172 L100 176 Z" />
+                <BodyRegion name="Pelvis" activePart={activePart} setActivePart={setActivePart}
+                    d="M62 220 L64 248 Q100 258 136 248 L138 220 Q100 230 62 220 Z" />
+                <BodyRegion name="LeftArm" activePart={activePart} setActivePart={setActivePart}
+                    d="M52 92 C46 95 38 102 35 114 L28 170 C28 178 32 184 38 184 L48 184 L55 136 L57 96 Z" />
+                <BodyRegion name="RightArm" activePart={activePart} setActivePart={setActivePart}
+                    d="M148 92 C154 95 162 102 165 114 L172 170 C172 178 168 184 162 184 L152 184 L145 136 L143 96 Z" />
+                <BodyRegion name="LeftLeg" activePart={activePart} setActivePart={setActivePart}
+                    d="M66 248 L60 310 L56 370 C56 378 62 386 72 386 L82 386 L84 310 L86 252 Q76 256 66 248 Z" />
+                <BodyRegion name="RightLeg" activePart={activePart} setActivePart={setActivePart}
+                    d="M134 248 L140 310 L144 370 C144 378 138 386 128 386 L118 386 L116 310 L114 252 Q124 256 134 248 Z" />
+            </svg>
 
-                <group position={[0, -0.5, 0]}>
-                    {/* Grid/Floor Circle for perspective */}
-                    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.8, 0]}>
-                        <ringGeometry args={[1.2, 1.25, 64]} />
-                        <meshBasicMaterial color="#cbd5e1" transparent opacity={0.3} />
-                    </mesh>
-
-                    {/* Head - more oval */}
-                    <HumanBodyPart position={[0, 2.3, 0]} args={[0.3, 0.38, 0.28, 32]} color="#94a3b8" activeColor="#ef4444" name="Head" setActivePart={setActivePart} activePart={activePart} geometry="sphere" />
-
-                    {/* Neck - tapered */}
-                    <HumanBodyPart position={[0, 1.95, 0]} args={[0.12, 0.15, 0.3, 32]} color="#cbd5e1" activeColor="#ef4444" name="Neck" setActivePart={setActivePart} activePart={activePart} geometry="cylinder" />
-
-                    {/* Torso - V-shape muscular look */}
-                    <group position={[0, 1.2, 0]}>
-                        {/* Upper Chest/Shoulders */}
-                        <HumanBodyPart position={[0, 0.4, 0]} args={[0.45, 0.35, 0.6, 32, 1, false, 0, Math.PI * 2]} color="#64748b" activeColor="#ef4444" name="Chest" setActivePart={setActivePart} activePart={activePart} geometry="cylinder" rotation={[0, 0, Math.PI / 2]} />
-                        {/* Middle Torso */}
-                        <HumanBodyPart position={[0, 0, 0]} args={[0.35, 0.42, 0.8, 32]} color="#475569" activeColor="#ef4444" name="Abdomen" setActivePart={setActivePart} activePart={activePart} geometry="cylinder" />
-                    </group>
-
-                    {/* Arms - Tapered cylinders */}
-                    {/* Left Arm */}
-                    <group position={[-0.6, 1.5, 0]}>
-                        <HumanBodyPart position={[0, -0.3, 0]} args={[0.1, 0.12, 0.8, 32]} color="#94a3b8" activeColor="#ef4444" name="LeftArm" setActivePart={setActivePart} activePart={activePart} geometry="cylinder" />
-                    </group>
-
-                    {/* Right Arm */}
-                    <group position={[0.6, 1.5, 0]}>
-                        <HumanBodyPart position={[0, -0.3, 0]} args={[0.1, 0.12, 0.8, 32]} color="#94a3b8" activeColor="#ef4444" name="RightArm" setActivePart={setActivePart} activePart={activePart} geometry="cylinder" />
-                    </group>
-
-                    {/* Legs - Strong muscular look */}
-                    {/* Left Leg */}
-                    <group position={[-0.25, 0.4, 0]}>
-                        {/* Upper Leg */}
-                        <HumanBodyPart position={[0, -0.4, 0]} args={[0.1, 0.18, 0.9, 32]} color="#64748b" activeColor="#ef4444" name="LeftLeg" setActivePart={setActivePart} activePart={activePart} geometry="cylinder" />
-                        {/* Lower Leg */}
-                        <HumanBodyPart position={[0, -1.2, 0]} args={[0.08, 0.12, 0.8, 32]} color="#94a3b8" activeColor="#ef4444" name="LeftLeg" setActivePart={setActivePart} activePart={activePart} geometry="cylinder" />
-                    </group>
-
-                    {/* Right Leg */}
-                    <group position={[0.25, 0.4, 0]}>
-                        {/* Upper Leg */}
-                        <HumanBodyPart position={[0, -0.4, 0]} args={[0.1, 0.18, 0.9, 32]} color="#64748b" activeColor="#ef4444" name="RightLeg" setActivePart={setActivePart} activePart={activePart} geometry="cylinder" />
-                        {/* Lower Leg */}
-                        <HumanBodyPart position={[0, -1.2, 0]} args={[0.08, 0.12, 0.8, 32]} color="#94a3b8" activeColor="#ef4444" name="RightLeg" setActivePart={setActivePart} activePart={activePart} geometry="cylinder" />
-                    </group>
-                </group>
-
-                <OrbitControls
-                    enablePan={false}
-                    minDistance={3}
-                    maxDistance={7}
-                    minPolarAngle={Math.PI / 6}
-                    maxPolarAngle={Math.PI / 1.5}
-                    autoRotate={!activePart}
-                    autoRotateSpeed={0.5}
-                    enableDamping
-                    dampingFactor={0.05}
-                />
-            </Canvas>
-
-            {/* Bottom Controls Indicator */}
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 bg-white/40 backdrop-blur-md rounded-full border border-white/50 shadow-sm pointer-events-none">
-                <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-[10px] font-medium text-slate-600 uppercase tracking-wider">3D Interaction Active</span>
-            </div>
+            {/* Float Label */}
+            {activePart && (
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur px-4 py-1.5 rounded-full border border-red-200 shadow-sm flex items-center gap-2"
+                    style={{ zIndex: 20 }}
+                >
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                    <span className="text-[11px] font-bold text-gray-800 uppercase tracking-tight">{activePart}</span>
+                </div>
+            )}
         </div>
     );
 }

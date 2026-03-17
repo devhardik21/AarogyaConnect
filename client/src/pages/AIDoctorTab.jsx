@@ -1,7 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic, Plus, ChevronRight } from 'lucide-react';
+import { Mic, Plus, ChevronRight, Volume2, Sparkles, MessageCircle } from 'lucide-react';
 import BodySelector from '../components/BodySelector';
+import { useAuth } from '../context/AuthContext';
+import axios from 'axios';
+import config from '../config';
 
 // Quick symptom chip data
 const SYMPTOMS = [
@@ -22,13 +25,18 @@ const AI_RESPONSES = {
 };
 
 export default function AIDoctorTab() {
+    const { user } = useAuth();
     const [step, setStep] = useState('chat');   // 'chat' | 'body'
     const [messages, setMessages] = useState([]);
     const [inputText, setInputText] = useState('');
     const [chatStarted, setChatStarted] = useState(false);
+    const [isTyping, setIsTyping] = useState(false);
+    const [isRecording, setIsRecording] = useState(false);
     const [selectedBodyPart, setSelectedBodyPart] = useState(null);
     const [bodyZone, setBodyZone] = useState(null);
     const messagesEndRef = useRef(null);
+    const mediaRecorderRef = useRef(null);
+    const audioChunksRef = useRef([]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -50,16 +58,98 @@ export default function AIDoctorTab() {
         }, 600);
     };
 
-    const handleSend = () => {
-        if (!inputText.trim()) return;
+    const handleSend = async (overrideText = null) => {
+        const text = overrideText || inputText;
+        if (!text.trim()) return;
+
         if (!chatStarted) setChatStarted(true);
-        const text = inputText;
         setInputText('');
         pushMessage('user', text);
-        // Connect Gemini here for real AI response
-        setTimeout(() => {
-            pushMessage('ai', 'Samjha. Kripya aur detail mein batayein ya body ke us hisse ko select karein jahan dard hai. 👇');
-        }, 700);
+        setIsTyping(true);
+
+        try {
+            console.log(`📡 Sending chat message: "${text}"`);
+            const res = await axios.post(`${config.API_BASE_URL}/api/ai/chat`, {
+                message: text,
+                userContext: user?.profile
+            });
+
+            setIsTyping(false);
+            const { reply, isWomenCorner, womenCornerInsight } = res.data;
+            pushMessage('ai', reply, { isWomenCorner, womenCornerInsight });
+        } catch (error) {
+            setIsTyping(false);
+            pushMessage('ai', "Maafi chahte hain, network mein kuch dikkat hai. Kripya thodi der baad koshish karein.");
+        }
+    };
+
+    const handleTTS = async (text) => {
+        try {
+            console.log(`🔊 Starting TTS for: "${text.substring(0, 30)}..."`);
+            const res = await axios.post(`${config.API_BASE_URL}/api/ai/tts`, {
+                text,
+                voice: 'bulbul:v3',
+                language_code: 'hi-IN'
+            });
+            const audio = new Audio(`data:audio/mp3;base64,${res.data.audio_content}`);
+            audio.play();
+        } catch (e) {
+            console.error("❌ TTS failed", e);
+        }
+    };
+
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = mediaRecorder;
+            audioChunksRef.current = [];
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    audioChunksRef.current.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+                const reader = new FileReader();
+                reader.readAsDataURL(audioBlob);
+                reader.onloadend = async () => {
+                    const base64Audio = reader.result.split(',')[1];
+                    setIsTyping(true);
+                    try {
+                        console.log("🎤 Sending audio for STT...");
+                        const res = await axios.post(`${config.API_BASE_URL}/api/ai/stt`, {
+                            audio_content: base64Audio,
+                            language_code: 'hi-IN' // or 'en-IN' or 'unknown'
+                        });
+                        console.log("🎤 STT Result:", res.data.transcript);
+                        if (res.data.transcript) {
+                            handleSend(res.data.transcript);
+                        }
+                    } catch (err) {
+                        console.error("❌ STT failed", err);
+                    } finally {
+                        setIsTyping(false);
+                    }
+                };
+            };
+
+            mediaRecorder.start();
+            setIsRecording(true);
+            console.log("🎤 Recording started...");
+        } catch (err) {
+            console.error("❌ Error accessing microphone", err);
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+            console.log("🎤 Recording stopped");
+        }
     };
 
     const handleContinueBody = () => {
@@ -119,33 +209,75 @@ export default function AIDoctorTab() {
                                     key={i}
                                     initial={{ opacity: 0, y: 8 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    transition={{ duration: 0.25 }}
-                                    className={`flex mb-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                                    className="mb-4"
                                 >
-                                    {msg.isCard ? (
-                                        <div className="bg-gradient-to-br from-green-50 to-teal-50 border border-green-100 rounded-3xl p-4 max-w-[90%] w-full card-shadow">
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <span className="text-lg">🧠</span>
-                                                <span className="text-xs font-bold text-green-700 uppercase tracking-wide">AI Analysis</span>
-                                            </div>
-                                            <p className="text-sm text-gray-700 leading-relaxed">{msg.text}</p>
-                                            {msg.part && (
-                                                <div className="flex gap-2 mt-3">
-                                                    <span className="bg-green-100 text-green-700 text-xs font-semibold px-3 py-1 rounded-full">{msg.part}</span>
-                                                    <span className="bg-blue-100 text-blue-700 text-xs font-semibold px-3 py-1 rounded-full">{msg.zone}</span>
+                                    <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                        {msg.isCard ? (
+                                            <div className="bg-gradient-to-br from-green-50 to-teal-50 border border-green-100 rounded-3xl p-4 max-w-[90%] w-full card-shadow">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <span className="text-lg">🧠</span>
+                                                    <span className="text-xs font-bold text-green-700 uppercase tracking-wide">AI Analysis</span>
                                                 </div>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        <div className={`max-w-[80%] px-4 py-2.5 rounded-3xl text-sm leading-relaxed shadow-sm ${msg.role === 'user'
-                                                ? 'bg-green-500 text-white rounded-br-lg'
-                                                : 'bg-gray-100 text-gray-800 rounded-bl-lg'
-                                            }`}>
-                                            {msg.text}
-                                        </div>
-                                    )}
+                                                <p className="text-sm text-gray-700 leading-relaxed">{msg.text}</p>
+                                                {msg.part && (
+                                                    <div className="flex gap-2 mt-3">
+                                                        <span className="bg-green-100 text-green-700 text-xs font-semibold px-3 py-1 rounded-full">{msg.part}</span>
+                                                        <span className="bg-blue-100 text-blue-700 text-xs font-semibold px-3 py-1 rounded-full">{msg.zone}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col gap-2 max-w-[85%]">
+                                                <div className={`px-4 py-3 rounded-3xl text-sm leading-relaxed shadow-sm relative group ${msg.role === 'user'
+                                                    ? 'bg-green-500 text-white rounded-br-lg'
+                                                    : 'bg-gray-100 text-gray-800 rounded-bl-lg'
+                                                    }`}>
+                                                    {msg.text}
+                                                    {msg.role === 'ai' && (
+                                                        <button
+                                                            onClick={() => handleTTS(msg.text)}
+                                                            className="absolute -right-10 top-1/2 -translate-y-1/2 p-2 bg-gray-50 text-gray-400 rounded-full hover:text-green-600 transition opacity-0 group-hover:opacity-100"
+                                                        >
+                                                            <Volume2 size={16} />
+                                                        </button>
+                                                    )}
+                                                </div>
+
+                                                {/* Women's Corner Insight Bubble */}
+                                                {msg.isWomenCorner && msg.womenCornerInsight && (
+                                                    <motion.div
+                                                        initial={{ opacity: 0, scale: 0.9 }}
+                                                        animate={{ opacity: 1, scale: 1 }}
+                                                        className="bg-gradient-to-br from-pink-50 to-rose-50 border border-pink-100 rounded-[2rem] p-5 shadow-sm mt-1"
+                                                    >
+                                                        <div className="flex items-center gap-2 mb-2 text-pink-600">
+                                                            <Sparkles size={18} />
+                                                            <span className="text-[10px] font-black uppercase tracking-widest">Women's Corner Insight</span>
+                                                        </div>
+                                                        <p className="text-xs text-pink-700 font-medium leading-relaxed italic">
+                                                            "{msg.womenCornerInsight}"
+                                                        </p>
+                                                        <div className="mt-3 flex gap-2">
+                                                            <span className="bg-pink-100 text-pink-600 text-[10px] font-bold px-3 py-1 rounded-full">Desi Remedy ✨</span>
+                                                            <span className="bg-pink-100 text-pink-600 text-[10px] font-bold px-3 py-1 rounded-full">Cycle Tips 📅</span>
+                                                        </div>
+                                                    </motion.div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
                                 </motion.div>
                             ))}
+
+                            {isTyping && (
+                                <div className="flex justify-start mb-4">
+                                    <div className="bg-gray-100 px-4 py-3 rounded-2xl flex gap-1 items-center">
+                                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
+                                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Symptom Quick-chips: always visible as the "suggestion tray" */}
                             <div className="mb-4">
@@ -192,9 +324,14 @@ export default function AIDoctorTab() {
                                     placeholder="e.g. Headache, stomach pain"
                                     className="flex-1 bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none"
                                 />
-                                <button className="text-gray-400 hover:text-green-500 flex-shrink-0 transition-colors">
+                                <button
+                                    onMouseDown={startRecording}
+                                    onMouseUp={stopRecording}
+                                    onTouchStart={startRecording}
+                                    onTouchEnd={stopRecording}
+                                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'text-gray-400 hover:text-green-500'}`}
+                                >
                                     <Mic size={20} />
-                                    {/* Connect speech-to-text API here */}
                                 </button>
                                 <button
                                     onClick={handleSend}
@@ -240,8 +377,8 @@ export default function AIDoctorTab() {
                                 onClick={handleContinueBody}
                                 disabled={!bodyZone}
                                 className={`w-full py-4 rounded-2xl font-bold text-white text-base transition-all ${bodyZone
-                                        ? 'bg-blue-600 btn-shadow hover:bg-blue-700 active:scale-95'
-                                        : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                    ? 'bg-blue-600 btn-shadow hover:bg-blue-700 active:scale-95'
+                                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                                     }`}
                             >
                                 Continue

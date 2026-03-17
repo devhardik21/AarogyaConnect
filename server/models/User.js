@@ -13,6 +13,19 @@ const UserSchema = new mongoose.Schema({
         specialty: String, // For doctors
         experience: String, // For doctors
         online: { type: Boolean, default: false },
+        healthProfile: {
+            chronicConditions: [String],
+            allergies: [String],
+            bloodGroup: String,
+            height: Number,
+            weight: Number,
+        },
+        menstrualData: {
+            lastPeriodDate: Date,
+            cycleLength: { type: Number, default: 28 },
+            isWorrying: { type: Boolean, default: false },
+            symptoms: [String]
+        },
         lastAiScan: {
             riskScores: {
                 sickleCell: { type: Number, default: 0 },

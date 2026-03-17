@@ -67,6 +67,9 @@ export default function LoginPatient() {
 
                 <div className="mt-8 text-center space-y-4">
                     <p className="text-gray-500 text-sm">
+                        New here? <Link to="/register" className="text-green-600 font-bold hover:underline">Create Account</Link>
+                    </p>
+                    <p className="text-gray-500 text-sm">
                         Are you a doctor? <Link to="/login/doctor" className="text-green-600 font-bold hover:underline">Doctor Login</Link>
                     </p>
                 </div>

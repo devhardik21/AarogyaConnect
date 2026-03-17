@@ -11,5 +11,7 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+    // Force single React instance to prevent "Invalid hook call" from @react-three/fiber
+    dedupe: ['react', 'react-dom'],
   },
 })

@@ -1,24 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import {
-    Mic, MicOff, Video as VideoIcon, VideoOff, PhoneOff,
-    MessageSquare, Share2, ClipboardList, Activity,
-    User, MapPin, TrendingUp, Thermometer, ShieldCheck,
-    Languages, X, Star, FileText
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import AgoraRTC from 'agora-rtc-sdk-ng';
+import io from 'socket.io-client';
+import axios from 'axios';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     AgoraRTCProvider,
     useRTCClient,
-    useLocalMicrophoneTrack,
     useLocalCameraTrack,
+    useLocalMicrophoneTrack,
     useRemoteUsers,
-    LocalVideoTrack,
+    useJoin,
     RemoteUser,
-    useJoin
-} from 'agora-rtc-react';
-import AgoraRTC from 'agora-rtc-sdk-ng';
+    LocalVideoTrack
+} from "agora-rtc-react";
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+    Languages, ShieldCheck, Star, Heart, Activity, MessageSquare,
+    PhoneCall, Video, Mic, MicOff, Camera, CameraOff, Send,
+    FileText, X, User, VideoOff, PhoneOff, Share2, ClipboardList,
+    MapPin, TrendingUp, Thermometer
+} from 'lucide-react';
+import config from '../config';
+const socket = io(config.SOCKET_URL);
 
 // --- AGORA SETUP ---
 const APP_ID = import.meta.env.VITE_AGORA_APP_ID || "PASTE_YOUR_APP_ID_HERE";
@@ -43,12 +47,46 @@ const VideoCallContent = () => {
     const [reportModal, setReportModal] = useState(false);
     const [sharedData, setSharedData] = useState(null);
 
+    const [agoraToken, setAgoraToken] = useState(null);
+
     // Agora Hooks
     const { localMicrophoneTrack } = useLocalMicrophoneTrack(!muted);
     const { localCameraTrack } = useLocalCameraTrack(!videoOff);
     const remoteUsers = useRemoteUsers();
 
-    useJoin({ appid: APP_ID, channel: channelId, token: null });
+    useEffect(() => {
+        const fetchToken = async () => {
+            try {
+                const res = await axios.get(`${config.API_BASE_URL}/api/agora/token?channelName=${channelId}`);
+                setAgoraToken(res.data.token);
+            } catch (e) {
+                console.error("Token fetch failed", e);
+            }
+        };
+
+        if (channelId) {
+            fetchToken();
+            // Signal the doctor if patient starts the call
+            if (user?.role === 'patient') {
+                console.log(`📡 Signaling doctor: ${targetDoctorId} for channel: ${channelId}`);
+                socket.emit('call-doctor', {
+                    doctorId: targetDoctorId,
+                    patientId: user._id,
+                    patientName: user.name,
+                    channelName: channelId
+                });
+            }
+        }
+
+        // Join signaling room
+        socket.emit('join-room', user?._id);
+
+        return () => {
+            socket.off('incoming-call');
+        };
+    }, [channelId, user]);
+
+    useJoin({ appid: APP_ID, channel: channelId, token: agoraToken }, !!agoraToken);
 
     const handleEndCall = () => {
         navigate('/video');
@@ -178,7 +216,7 @@ const VideoCallContent = () => {
                             onClick={() => setVideoOff(!videoOff)}
                             className={`w-12 h-12 rounded-2xl flex items-center justify-center transition shadow-lg ${videoOff ? 'bg-red-500 shadow-red-500/20' : 'bg-white/10 hover:bg-white/20 border border-white/10'}`}
                         >
-                            {videoOff ? <VideoOff size={20} /> : <VideoIcon size={20} />}
+                            {videoOff ? <VideoOff size={20} /> : <Video size={20} />}
                         </button>
                         <button
                             onClick={handleEndCall}

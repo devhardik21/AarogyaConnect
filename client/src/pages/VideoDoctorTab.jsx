@@ -1,48 +1,51 @@
-import React, { useState, useEffect } from 'react';
-import { PhoneCall, Video, Search, MapPin, Star, ShieldCheck } from 'lucide-react';
-import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import io from 'socket.io-client';
+import { useAuth } from '../context/AuthContext';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
+import { Search, MapPin, ShieldCheck, Star, Activity, MessageSquare, PhoneCall, Video, Mic, MicOff, Camera, CameraOff, Send, FileText, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import config from '../config';
+
+const socket = io(config.SOCKET_URL);
 
 export default function VideoDoctorTab() {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [searchQuery, setSearchQuery] = useState('');
+    const [incomingCall, setIncomingCall] = useState(null);
+    const [doctors, setDoctors] = useState([]);
+    const [loading, setLoading] = useState(true);
 
-    // Mock data for demo
-    const doctors = [
-        {
-            id: 'doc1',
-            name: 'Dr. Sameer Khan',
-            spec: 'General Physician',
-            status: 'Online',
-            exp: '12 Years',
-            rating: 4.8,
-            reviews: 124,
-            fee: '₹500',
-            color: 'blue'
-        },
-        {
-            id: 'doc2',
-            name: 'Dr. Priya Sharma',
-            spec: 'Hematologist',
-            status: 'Online',
-            exp: '8 Years',
-            rating: 4.9,
-            reviews: 86,
-            fee: '₹800',
-            color: 'purple'
-        },
-        {
-            id: 'doc3',
-            name: 'Dr. Anita Verma',
-            spec: 'Gynaecologist',
-            status: 'Busy',
-            exp: '10 Years',
-            rating: 4.7,
-            reviews: 210,
-            fee: '₹600',
-            color: 'green'
+    useEffect(() => {
+        const fetchDoctors = async () => {
+            try {
+                console.log("👨‍⚕️ Fetching doctors from API...");
+                const res = await axios.get(`${config.API_BASE_URL}/api/doctors`);
+                setDoctors(res.data);
+            } catch (err) {
+                console.error("❌ Failed to fetch doctors", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchDoctors();
+
+        if (user?._id) {
+            socket.emit('join-room', user._id);
+            console.log(`🔌 Connected to signaling room: ${user._id}`);
         }
-    ];
+
+        socket.on('incoming-call', (data) => {
+            console.log("🔔 Incoming call notification:", data);
+            setIncomingCall(data);
+        });
+
+        return () => {
+            socket.off('incoming-call');
+        };
+    }, [user]);
 
     const filteredDoctors = doctors.filter(doc =>
         doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -51,7 +54,7 @@ export default function VideoDoctorTab() {
 
     const startCall = (doctorId) => {
         const randomChannel = `arogyacall-${Math.floor(Math.random() * 100000)}`;
-        navigate(`/video-call/${randomChannel}`);
+        navigate(`/video-call/${randomChannel}`, { state: { doctorId } });
     };
 
     return (
@@ -126,8 +129,8 @@ export default function VideoDoctorTab() {
                                 <button
                                     onClick={() => doc.status === 'Online' && startCall(doc.id)}
                                     className={`flex-[2] py-4 rounded-2xl font-bold flex justify-center items-center gap-2 transition shadow-lg ${doc.status === 'Online'
-                                            ? 'bg-green-600 text-white hover:bg-green-700 shadow-green-100 active:scale-[0.98]'
-                                            : 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
+                                        ? 'bg-green-600 text-white hover:bg-green-700 shadow-green-100 active:scale-[0.98]'
+                                        : 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
                                         }`}
                                 >
                                     <Video size={18} fill="currentColor" />
@@ -146,6 +149,39 @@ export default function VideoDoctorTab() {
                     ))}
                 </div>
             </div>
+
+            {/* Incoming Call Notification */}
+            <AnimatePresence>
+                {incomingCall && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 100 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 100 }}
+                        className="fixed bottom-24 inset-x-6 z-50 bg-white rounded-[2.5rem] p-6 shadow-2xl border-4 border-green-500 flex flex-col items-center text-center"
+                    >
+                        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-4 animate-bounce">
+                            <PhoneCall className="text-green-600" size={32} />
+                        </div>
+                        <h3 className="text-xl font-black text-gray-900">Incoming Call</h3>
+                        <p className="text-gray-500 font-bold mb-6">{incomingCall.patientName} is calling you...</p>
+
+                        <div className="flex gap-4 w-full">
+                            <button
+                                onClick={() => setIncomingCall(null)}
+                                className="flex-1 py-4 bg-gray-100 text-gray-500 rounded-2xl font-bold hover:bg-gray-200 transition"
+                            >
+                                Decline
+                            </button>
+                            <button
+                                onClick={() => navigate(`/video-call/${incomingCall.channelName}`)}
+                                className="flex-[2] py-4 bg-green-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-green-700 shadow-lg shadow-green-100 transition active:scale-95"
+                            >
+                                <Video size={20} fill="currentColor" /> Accept Call
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

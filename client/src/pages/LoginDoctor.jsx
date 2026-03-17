@@ -67,7 +67,7 @@ export default function LoginDoctor() {
 
                 <div className="mt-8 text-center">
                     <p className="text-gray-500 text-sm">
-                        Registration required? <Link to="/login/patient" className="text-blue-600 font-bold hover:underline">Patient Portal</Link>
+                        Registration required? <Link to="/register/doctor" className="text-blue-600 font-bold hover:underline">Register as Doctor</Link>
                     </p>
                 </div>
             </motion.div>

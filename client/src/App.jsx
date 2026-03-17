@@ -7,6 +7,8 @@ import EmergencyTab from './pages/EmergencyTab';
 import LoginPatient from './pages/LoginPatient';
 import LoginDoctor from './pages/LoginDoctor';
 import VideoCall from './pages/VideoCall';
+import InteractiveRegistration from './pages/InteractiveRegistration';
+import RegisterDoctor from './pages/RegisterDoctor';
 import BottomNav from './components/BottomNav';
 import { AnimatePresence } from 'framer-motion';
 import { useAuth } from './context/AuthContext';
@@ -21,6 +23,8 @@ function AnimatedRoutes() {
         {/* Auth Routes */}
         <Route path="/login/patient" element={<LoginPatient />} />
         <Route path="/login/doctor" element={<LoginDoctor />} />
+        <Route path="/register" element={<InteractiveRegistration />} />
+        <Route path="/register/doctor" element={<RegisterDoctor />} />
 
         {/* Protected App Routes */}
         <Route path="/ai-doctor" element={user ? <AIDoctorTab /> : <Navigate to="/login/patient" />} />
