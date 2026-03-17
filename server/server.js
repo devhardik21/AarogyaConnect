@@ -29,6 +29,9 @@ app.use('/api/symptoms', symptomRoutes);
 app.use('/api/doctors', doctorRoutes);
 app.use('/api/vitals', vitalRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/', (req, res) => {
+    res.send('Hello World!');
+});
 
 // ─── Gemini AI Proxy (stub — wire the Gemini SDK here) ────────────────────────
 // Connect Gemini here
