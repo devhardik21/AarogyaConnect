@@ -65,6 +65,19 @@ const VideoCallContent = () => {
     const { localMicrophoneTrack } = useLocalMicrophoneTrack(!muted);
     const { localCameraTrack } = useLocalCameraTrack(!videoOff);
     const remoteUsers = useRemoteUsers();
+    const client = useRTCClient();
+
+    // Diagnostics: Log Agora events
+    useEffect(() => {
+        if (!client) return;
+        const events = ['user-joined', 'user-published', 'user-left', 'exception'];
+        events.forEach(en => {
+            client.on(en, (arg) => console.log(`📡 Agora Event [${en}]:`, arg));
+        });
+        return () => {
+            events.forEach(en => client.off(en));
+        };
+    }, [client]);
 
     useEffect(() => {
         const fetchToken = async () => {
@@ -81,45 +94,41 @@ const VideoCallContent = () => {
 
         if (channelId) {
             fetchToken();
-
-            // --- Patient Call Signaling ---
-            // Step 1: POST to server queue — reliable, persisted.
-            //         Server will emit to doctor immediately AND replay on reconnect.
-            // Step 2: Keep a 3s socket fallback ping as an extra fast-path.
-            let signalingInterval;
-            if (user?.role === 'patient' && targetDoctorId) {
-                const callPayload = {
-                    doctorId: String(targetDoctorId),
-                    patientId: user._id,
-                    patientName: user.name,
-                    channelName: channelId
-                };
-
-                console.log(`📡 Queueing call → doctorId: [${callPayload.doctorId}] (type: ${typeof targetDoctorId})`);
-
-                // Primary: enqueue via HTTP (survives socket race conditions)
-                axios.post(`${config.API_BASE_URL}/api/calls/queue`, callPayload)
-                    .then(() => console.log('📋 Call queued on server successfully'))
-                    .catch(err => console.error('❌ Failed to queue call:', err.message));
-
-                // Fallback heartbeat: re-emit via socket so the doctor gets it quickly
-                // if they're already connected. Stops when remote user joins.
-                const emitSocketSignal = () => {
-                    if (remoteUsers.length === 0) {
-                        socket.emit('call-doctor', callPayload);
-                    } else {
-                        clearInterval(signalingInterval);
-                    }
-                };
-                emitSocketSignal(); // Immediate socket ping
-                signalingInterval = setInterval(emitSocketSignal, 3000);
-            }
-
-            return () => {
-                if (signalingInterval) clearInterval(signalingInterval);
-            };
         }
     }, [channelId]);
+
+    // --- Signaling Heartbeat ---
+    // Moved to separate effect to avoid stale remoteUsers state
+    useEffect(() => {
+        if (!channelId || !user || user.role !== 'patient' || !targetDoctorId) return;
+        if (remoteUsers.length > 0) return;
+
+        console.log(`📡 Starting call heartbeat to doctor: ${targetDoctorId}`);
+
+        const callPayload = {
+            doctorId: String(targetDoctorId),
+            patientId: user._id,
+            patientName: user.name,
+            channelName: channelId
+        };
+
+        // Initial queueing
+        axios.post(`${config.API_BASE_URL}/api/calls/queue`, callPayload)
+            .then(() => console.log('📋 Call heartbeat: Queued on server'))
+            .catch(err => console.error('❌ Call heartbeat error:', err.message));
+
+        const signalingInterval = setInterval(() => {
+            if (remoteUsers.length === 0) {
+                socket.emit('call-doctor', callPayload);
+                console.log('📡 Heartbeat: socket ping sent');
+            }
+        }, 3000);
+
+        return () => {
+            console.log('📡 Stopping call heartbeat');
+            clearInterval(signalingInterval);
+        };
+    }, [channelId, user?._id, targetDoctorId, remoteUsers.length]);
 
     // Join/Room socket handlers
     useEffect(() => {

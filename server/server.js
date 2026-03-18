@@ -377,15 +377,29 @@ app.get('/api/agora/token', (req, res) => {
     const currentTimestamp = Math.floor(Date.now() / 1000);
     const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
 
+    const appId = process.env.AGORA_APP_ID;
+    const appCertificate = process.env.AGORA_APP_CERTIFICATE;
+
+    if (!appId || appId === "PASTE_APP_ID") {
+        console.error("❌ AGORA_APP_ID is missing or not configured");
+        return res.status(500).json({ error: 'Agora App ID not configured' });
+    }
+
+    if (!appCertificate || appCertificate === "PASTE_CERTIFICATE") {
+        console.error("❌ AGORA_APP_CERTIFICATE is missing or not configured");
+        return res.status(500).json({ error: 'Agora App Certificate not configured' });
+    }
+
     const token = RtcTokenBuilder.buildTokenWithUid(
-        process.env.AGORA_APP_ID || "PASTE_APP_ID",
-        process.env.AGORA_APP_CERTIFICATE || "PASTE_CERTIFICATE",
+        appId,
+        appCertificate,
         channelName,
         uid,
         role,
         privilegeExpiredTs
     );
 
+    console.log(`🎟️ Token generated for channel=${channelName} | appId=${appId.slice(0, 4)}...`);
     res.json({ token });
 });
 app.use('/', (req, res) => {
