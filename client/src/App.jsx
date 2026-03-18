@@ -9,6 +9,7 @@ import LoginDoctor from './pages/LoginDoctor';
 import VideoCall from './pages/VideoCall';
 import InteractiveRegistration from './pages/InteractiveRegistration';
 import RegisterDoctor from './pages/RegisterDoctor';
+import DoctorDashboard from './pages/DoctorDashboard';
 import BottomNav from './components/BottomNav';
 import { AnimatePresence } from 'framer-motion';
 import { useAuth } from './context/AuthContext';
@@ -16,6 +17,8 @@ import { useAuth } from './context/AuthContext';
 function AnimatedRoutes() {
   const location = useLocation();
   const { user } = useAuth();
+
+  const isDoctor = user?.role === 'doctor';
 
   return (
     <AnimatePresence mode="wait">
@@ -26,17 +29,32 @@ function AnimatedRoutes() {
         <Route path="/register" element={<InteractiveRegistration />} />
         <Route path="/register/doctor" element={<RegisterDoctor />} />
 
-        {/* Protected App Routes */}
+        {/* Doctor-only Dashboard */}
+        <Route
+          path="/doctor"
+          element={user && isDoctor ? <DoctorDashboard /> : <Navigate to="/login/doctor" />}
+        />
+
+        {/* Protected App Routes (patient) */}
         <Route path="/ai-doctor" element={user ? <AIDoctorTab /> : <Navigate to="/login/patient" />} />
         <Route path="/video" element={user ? <VideoDoctorTab /> : <Navigate to="/login/patient" />} />
         <Route path="/vitals" element={user ? <VitalsTab /> : <Navigate to="/login/patient" />} />
         <Route path="/events" element={user ? <EventsTab /> : <Navigate to="/login/patient" />} />
         <Route path="/emergency" element={user ? <EmergencyTab /> : <Navigate to="/login/patient" />} />
 
-        {/* Special Video Call route (dynamic ID) */}
+        {/* Video Call (both roles) */}
         <Route path="/video-call/:channelId" element={user ? <VideoCall /> : <Navigate to="/login/patient" />} />
 
-        <Route path="/" element={<Navigate to={user ? "/ai-doctor" : "/login/patient"} replace />} />
+        {/* Default redirect based on role */}
+        <Route
+          path="/"
+          element={
+            <Navigate
+              to={!user ? '/login/patient' : isDoctor ? '/doctor' : '/ai-doctor'}
+              replace
+            />
+          }
+        />
       </Routes>
     </AnimatePresence>
   );
@@ -44,6 +62,7 @@ function AnimatedRoutes() {
 
 function App() {
   const { user } = useAuth();
+  const isDoctor = user?.role === 'doctor';
 
   return (
     <Router>
@@ -53,8 +72,8 @@ function App() {
             <AnimatedRoutes />
           </div>
 
-          {/* Only show bottom nav if logged in and not in a call */}
-          {user && <BottomNav />}
+          {/* Hide bottom nav for doctors (they have their own dashboard UI) */}
+          {user && !isDoctor && <BottomNav />}
         </div>
       </div>
     </Router>

@@ -40,14 +40,26 @@ const VideoCallContent = () => {
     const { channelId } = useParams();
     const { user } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
+    // doctorId passed via navigation state from VideoDoctorTab
+    // We save it to sessionStorage to survive refreshes during the call
+    const [targetDoctorId, setTargetDoctorId] = useState(() => {
+        const idFromState = location.state?.doctorId;
+        if (idFromState) {
+            sessionStorage.setItem('activeDoctorId', idFromState);
+            return idFromState;
+        }
+        return sessionStorage.getItem('activeDoctorId');
+    });
+
     const [muted, setMuted] = useState(false);
     const [videoOff, setVideoOff] = useState(false);
     const [lang, setLang] = useState('en');
     const [sidebarOpen, setSidebarOpen] = useState(user?.role === 'doctor');
     const [reportModal, setReportModal] = useState(false);
     const [sharedData, setSharedData] = useState(null);
-
     const [agoraToken, setAgoraToken] = useState(null);
+    const [isConnecting, setIsConnecting] = useState(true);
 
     // Agora Hooks
     const { localMicrophoneTrack } = useLocalMicrophoneTrack(!muted);
@@ -58,33 +70,62 @@ const VideoCallContent = () => {
         const fetchToken = async () => {
             try {
                 const res = await axios.get(`${config.API_BASE_URL}/api/agora/token?channelName=${channelId}`);
+                console.log("🎟️ Agora Token received");
                 setAgoraToken(res.data.token);
             } catch (e) {
-                console.error("Token fetch failed", e);
+                console.error("❌ Token fetch failed", e);
+            } finally {
+                setIsConnecting(false);
             }
         };
 
         if (channelId) {
             fetchToken();
-            // Signal the doctor if patient starts the call
-            if (user?.role === 'patient') {
-                console.log(`📡 Signaling doctor: ${targetDoctorId} for channel: ${channelId}`);
-                socket.emit('call-doctor', {
-                    doctorId: targetDoctorId,
-                    patientId: user._id,
-                    patientName: user.name,
-                    channelName: channelId
-                });
-            }
-        }
 
-        // Join signaling room
-        socket.emit('join-room', user?._id);
+            // --- Signaling Heartbeat (for Patients) ---
+            // We repeat the signal because the doctor might not be on the dashboard 
+            // the exact millisecond the patient joins, or socket might lag.
+            let signalingInterval;
+            if (user?.role === 'patient' && targetDoctorId) {
+                console.log(`📡 Starting persistent signal to doctor: ${targetDoctorId}`);
+                const emitSignal = () => {
+                    if (remoteUsers.length === 0) { // Only repeat if no one has joined yet
+                        socket.emit('call-doctor', {
+                            doctorId: targetDoctorId,
+                            patientId: user._id,
+                            patientName: user.name,
+                            channelName: channelId
+                        });
+                    }
+                };
+                emitSignal(); // Immediate
+                signalingInterval = setInterval(emitSignal, 2000); // Every 2s
+            }
+
+            return () => {
+                if (signalingInterval) clearInterval(signalingInterval);
+            };
+        }
+    }, [channelId]);
+
+    // Join/Room socket handlers
+    useEffect(() => {
+        if (!user?._id) return;
+
+        socket.emit('join-room', user._id);
+        console.log(`🔌 Local user joined signaling room: ${user._id}`);
+
+        // Doctor listens for data
+        const dataHandler = (patientData) => {
+            console.log('📋 Received patient data via socket:', patientData);
+            setSharedData(patientData);
+        };
+        socket.on('patient-data', dataHandler);
 
         return () => {
-            socket.off('incoming-call');
+            socket.off('patient-data', dataHandler);
         };
-    }, [channelId, user]);
+    }, [user?._id]);
 
     useJoin({ appid: APP_ID, channel: channelId, token: agoraToken }, !!agoraToken);
 
@@ -95,11 +136,14 @@ const VideoCallContent = () => {
     const toggleLang = () => setLang(l => l === 'en' ? 'hi' : 'en');
 
     const shareReport = () => {
-        // In a real app, this would send a message over RTM or Socket
-        // Here we simulate local state change that affects the UI
         if (user.role === 'patient') {
+            // Share patient profile to the doctor via socket
+            socket.emit('share-patient-data', {
+                doctorId: targetDoctorId,
+                patientData: user.profile
+            });
             setSharedData(user.profile);
-            alert("Report Shared with Doctor!");
+            alert("Report Shared with Doctor! 📋");
         }
     };
 
@@ -177,15 +221,36 @@ const VideoCallContent = () => {
                         <RemoteUser user={remoteUsers[0]} className="w-full h-full object-cover" />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center bg-[#1e293b]">
-                            <div className="text-center">
+                            <div className="text-center p-8">
                                 <motion.div
-                                    animate={{ scale: [1, 1.1, 1] }}
-                                    transition={{ repeat: Infinity, duration: 2 }}
-                                    className="w-24 h-24 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-500/30"
+                                    animate={{
+                                        scale: [1, 1.1, 1],
+                                        rotate: [0, 5, -5, 0]
+                                    }}
+                                    transition={{ repeat: Infinity, duration: 3 }}
+                                    className="w-24 h-24 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-6 border border-blue-500/30 relative"
                                 >
+                                    <div className="absolute inset-0 rounded-full border border-blue-500/40 animate-ping opacity-20" />
                                     <User size={40} className="text-blue-400" />
                                 </motion.div>
-                                <p className="text-gray-400 font-medium animate-pulse">Waiting for {user.role === 'patient' ? 'Doctor' : 'Patient'}...</p>
+                                <h3 className="text-xl font-black mb-2 tracking-tight">
+                                    Waiting for {user.role === 'patient' ? 'Doctor' : 'Patient'}
+                                </h3>
+                                <div className="flex flex-col gap-2 items-center">
+                                    <p className="text-blue-400/60 font-bold text-[10px] uppercase tracking-[0.2em] animate-pulse">
+                                        Establishing Secure Link...
+                                    </p>
+                                    <div className="flex gap-1.5 mt-2">
+                                        <div className={`w-1.5 h-1.5 rounded-full ${agoraToken ? 'bg-green-500' : 'bg-orange-500 animate-pulse'}`} title="Token Status" />
+                                        <div className={`w-1.5 h-1.5 rounded-full ${localCameraTrack ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} title="Camera Status" />
+                                        <div className={`w-1.5 h-1.5 rounded-full ${localMicrophoneTrack ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} title="Microphone Status" />
+                                    </div>
+                                    {!localCameraTrack && (
+                                        <p className="text-[9px] text-red-400/80 font-medium mt-2 max-w-[200px]">
+                                            ⚠️ Camera conflict detected. Ensure no other apps or browser tabs are using your camera.
+                                        </p>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     )}

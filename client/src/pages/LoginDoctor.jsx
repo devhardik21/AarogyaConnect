@@ -15,7 +15,7 @@ export default function LoginDoctor() {
         e.preventDefault();
         const res = await login(email, password);
         if (res.success) {
-            navigate('/video');
+            navigate('/doctor');
         } else {
             setError(res.message);
         }

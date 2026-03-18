@@ -1,4 +1,5 @@
 import authRoutes from './routes/authRoutes.js';
+import { registerSarvamHandlers } from './sarvamHandlers.js';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -25,7 +26,8 @@ const PORT = process.env.PORT || 5000;
 
 // ─── Middleware ────────────────────────────────────────────────────────────────
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // ─── Database Connection ───────────────────────────────────────────────────────
 mongoose
@@ -40,13 +42,10 @@ app.use('/api/symptoms', symptomRoutes);
 app.use('/api/doctors', doctorRoutes);
 app.use('/api/vitals', vitalRoutes);
 app.use('/api/auth', authRoutes);
-app.use('/', (req, res) => {
-    res.send('Hello World!');
-});
 
 // ─── AI & Socket Setup ───────────────────────────────────────────────────────
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
 io.on('connection', (socket) => {
     console.log('👤 New Client Connected:', socket.id);
@@ -59,7 +58,14 @@ io.on('connection', (socket) => {
 
     // Notify doctor of incoming call
     socket.on('call-doctor', ({ doctorId, patientId, patientName, channelName }) => {
+        console.log(`📡 Forwarding call from patient ${patientId} to doctor ${doctorId}`);
         io.to(doctorId).emit('incoming-call', { patientId, patientName, channelName });
+    });
+
+    // Patient shares their profile data to doctor during call
+    socket.on('share-patient-data', ({ doctorId, patientData }) => {
+        console.log(`📋 Patient sharing data to doctor ${doctorId}`);
+        io.to(doctorId).emit('patient-data', patientData);
     });
 
     socket.on('disconnect', () => {
@@ -67,24 +73,40 @@ io.on('connection', (socket) => {
     });
 });
 
+// Register Sarvam real-time STT namespace
+registerSarvamHandlers(io);
+
 // ─── AI Chat with Context ─────────────────────────────────────────────────────
 app.post('/api/ai/chat', async (req, res) => {
-    const { message, userContext } = req.body;
-    console.log(`🤖 AI Chat Request: "${message}" for user: ${userContext?.name || 'Unknown'}`);
     try {
+        const { message, userContext } = req.body;
+        console.log('generate fn called');
+        console.log(`prompt is : ${message}`);
+
+        if (!message) {
+            return res.status(400).json({ error: "Prompt is required" });
+        }
+
         const systemPrompt = `
         You are Arogya AI, a helpful healthcare assistant for rural India.
         User Context: ${JSON.stringify(userContext || {})}
-        
+
         Rules:
-        1. Be empathetic and clear. Use Hindi/English (Hinglish).
+        1. Be empathetic and clear.
         2. If the user is female and the query could be related to menstrual health, provide a "WOMEN_CORNER" insight.
         3. If there's a serious symptom, suggest visiting a doctor.
         4. Provide "Desi remedies" (Home remedies) where appropriate but keep them safe.
-        
-        Format your response as a JSON object:
+
+        IMPORTANT – You must respond in THREE languages:
+        - reply: Plain English response
+        - reply_hindi: The same response translated to Hindi (Devanagari script)
+        - reply_chhattisgarhi: The same response translated to Chhattisgarhi dialect (Devanagari script, Chhattisgarhi words like "tola", "mohar", "tor", "ka hoe", etc.)
+
+        Format your response STRICTLY as a JSON object with no markdown:
         {
-            "reply": "your text response here",
+            "reply": "English response here",
+            "reply_hindi": "हिंदी में जवाब यहाँ",
+            "reply_chhattisgarhi": "छत्तीसगढ़ी में जवाब इहाँ",
             "isWomenCorner": true/false,
             "womenCornerInsight": "Pink theme insight about cycle or remedies here (if applicable, otherwise null)"
         }
@@ -92,7 +114,7 @@ app.post('/api/ai/chat', async (req, res) => {
 
         const result = await model.generateContent([systemPrompt, message]);
         const responseText = result.response.text();
-        console.log(`🤖 AI raw response: ${responseText}`);
+        console.log("Gemini Response:", responseText);
 
         // Try to parse JSON from AI, or fallback
         try {
@@ -102,23 +124,160 @@ app.post('/api/ai/chat', async (req, res) => {
             res.json(parsed);
         } catch (e) {
             console.warn(`⚠️ AI response was not valid JSON, sending as plain reply`);
-            res.json({ reply: responseText, isWomenCorner: false });
+            res.json({ reply: responseText, reply_hindi: responseText, reply_chhattisgarhi: responseText, isWomenCorner: false });
         }
     } catch (error) {
-        console.error(`❌ AI Chat Error:`, error.message);
-        res.status(500).json({ error: error.message });
+        console.error("Gemini Error:", error);
+        res.status(500).json({ error: "Text generation failed: " + error.message });
     }
 });
 
-// ─── Sarvam AI Proxy ──────────────────────────────────────────────────────────
+// ─── Sarvam Bulbul v3 TTS ────────────────────────────────────────────────────
+// POST /api/ai/tts
+// body: { text, language?, speaker? }
+// Returns: { audio: <base64 WAV string> }
 app.post('/api/ai/tts', async (req, res) => {
     try {
-        const response = await axios.post('https://api.sarvam.ai/text-to-speech', req.body, {
-            headers: { 'api-subscription-key': process.env.SARVAM_API_KEY }
-        });
-        res.json(response.data);
+        const { text, language = 'hi-IN', speaker = 'shreya' } = req.body;
+
+        if (!text || typeof text !== 'string') {
+            return res.status(400).json({ error: 'text is required' });
+        }
+
+        const apiKey = process.env.SARVAM_API_KEY;
+        if (!apiKey) {
+            return res.status(500).json({ error: 'SARVAM_API_KEY not configured' });
+        }
+
+        // Strip markdown so TTS reads clean prose
+        const cleanText = text
+            .replace(/#{1,6}\s/g, '')
+            .replace(/\*\*(.*?)\*\*/g, '$1')
+            .replace(/\*(.*?)\*/g, '$1')
+            .replace(/`{1,3}[^`]*`{1,3}/g, '')
+            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+            .replace(/^[-*+]\s/gm, '')
+            .replace(/\n{2,}/g, '. ')
+            .trim();
+
+        // Bulbul v3: each input string max 500 chars
+        const chunks = [];
+        for (let i = 0; i < cleanText.length; i += 500) {
+            chunks.push(cleanText.slice(i, i + 500));
+        }
+
+        const response = await axios.post(
+            'https://api.sarvam.ai/text-to-speech',
+            {
+                inputs: chunks,
+                target_language_code: language,
+                speaker: speaker,
+                model: 'bulbul:v3',
+                enable_preprocessing: true,
+                pace: 1.0,
+            },
+            {
+                headers: {
+                    'api-subscription-key': apiKey,
+                    'Content-Type': 'application/json',
+                },
+            }
+        );
+
+        const audios = response.data?.audios;
+        if (!audios || audios.length === 0) {
+            return res.status(500).json({ error: 'No audio returned from Sarvam' });
+        }
+
+        // Concatenate WAV chunks – keep first header, strip subsequent ones
+        let combinedBuffer;
+        if (audios.length === 1) {
+            combinedBuffer = Buffer.from(audios[0], 'base64');
+        } else {
+            const buffers = audios.map(a => Buffer.from(a, 'base64'));
+            combinedBuffer = buffers[0];
+            for (let i = 1; i < buffers.length; i++) {
+                if (buffers[i].length > 44) {
+                    combinedBuffer = Buffer.concat([combinedBuffer, buffers[i].slice(44)]);
+                }
+            }
+            // Update WAV header sizes
+            if (combinedBuffer.length > 44) {
+                const dataSize = combinedBuffer.length - 44;
+                combinedBuffer.writeUInt32LE(dataSize + 36, 4);
+                combinedBuffer.writeUInt32LE(dataSize, 40);
+            }
+        }
+
+        return res.status(200).json({ audio: combinedBuffer.toString('base64') });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('TTS Error:', error.response?.data || error.message);
+        return res.status(500).json({ error: `TTS failed: ${error.message}` });
+    }
+});
+
+// ─── Body Visual Analysis (Gemini Vision) ───────────────────────────────────
+// POST /api/ai/body-analysis
+// body: { bodyParts, zones, partsSummary, imageBase64?, userContext? }
+app.post('/api/ai/body-analysis', async (req, res) => {
+    try {
+        const { bodyParts, zones, partsSummary, imageBase64, userContext } = req.body;
+
+        if (!bodyParts || bodyParts.length === 0) {
+            return res.status(400).json({ error: 'bodyParts is required' });
+        }
+
+        console.log(`🩻 Body analysis requested for: ${partsSummary}`);
+
+        const systemPrompt = `
+You are Arogya AI, a rural healthcare assistant for India.
+A patient has selected the following body areas where they have pain or symptoms: ${partsSummary}.
+User health context: ${JSON.stringify(userContext || {})}.
+
+Analyse these regions from both the visual body diagram (if provided) and the named areas.
+Provide a compassionate, practical response in English.
+
+Respond STRICTLY as a JSON object with no markdown:
+{
+  "analysis": "2-3 sentences explaining what might be causing pain in these specific areas, written simply for a rural patient",
+  "recommendations": ["3-4 short actionable recommendations as an array of strings"],
+  "urgency": "low | medium | high",
+  "desi_remedy": "One simple home remedy relevant for these body areas (optional)"
+}
+`;
+
+        let parts;
+        if (imageBase64) {
+            // Use vision: send the body diagram image + text prompt
+            parts = [
+                {
+                    inlineData: {
+                        mimeType: 'image/png',
+                        data: imageBase64
+                    }
+                },
+                { text: systemPrompt }
+            ];
+        } else {
+            parts = [systemPrompt];
+        }
+
+        const result = await model.generateContent(parts);
+        const responseText = result.response.text();
+        console.log('🩻 Body Analysis Response:', responseText);
+
+        try {
+            const cleanJson = responseText.replace(/```json|```/g, '').trim();
+            const parsed = JSON.parse(cleanJson);
+            console.log('✅ Body analysis parsed successfully');
+            res.json(parsed);
+        } catch (e) {
+            console.warn('⚠️ Body analysis response was not valid JSON');
+            res.json({ analysis: responseText, recommendations: [], urgency: 'medium' });
+        }
+    } catch (error) {
+        console.error('Body Analysis Error:', error);
+        res.status(500).json({ error: 'Body analysis failed: ' + error.message });
     }
 });
 
@@ -157,6 +316,9 @@ app.get('/api/agora/token', (req, res) => {
     );
 
     res.json({ token });
+});
+app.use('/', (req, res) => {
+    res.send('Hello World!');
 });
 
 // ─── Start ──────────────────────────────────────────────────────────────────
