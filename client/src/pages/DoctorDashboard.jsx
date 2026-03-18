@@ -23,8 +23,9 @@ export default function DoctorDashboard() {
     // ─── Socket setup ─────────────────────────────────────────────────────
     useEffect(() => {
         if (user?._id) {
-            socket.emit('join-room', user._id);
-            console.log(`🔌 Doctor ${user.name} joined signaling room: ${user._id}`);
+            const doctorRoomId = String(user._id);
+            console.log(`🔔 Doctor joining signaling room with ID: [${doctorRoomId}] (type: ${typeof user._id})`);
+            socket.emit('join-room', doctorRoomId);
         }
 
         socket.on('incoming-call', (data) => {

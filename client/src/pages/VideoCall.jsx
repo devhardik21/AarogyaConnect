@@ -89,11 +89,13 @@ const VideoCallContent = () => {
             let signalingInterval;
             if (user?.role === 'patient' && targetDoctorId) {
                 const callPayload = {
-                    doctorId: targetDoctorId,
+                    doctorId: String(targetDoctorId),
                     patientId: user._id,
                     patientName: user.name,
                     channelName: channelId
                 };
+
+                console.log(`📡 Queueing call → doctorId: [${callPayload.doctorId}] (type: ${typeof targetDoctorId})`);
 
                 // Primary: enqueue via HTTP (survives socket race conditions)
                 axios.post(`${config.API_BASE_URL}/api/calls/queue`, callPayload)

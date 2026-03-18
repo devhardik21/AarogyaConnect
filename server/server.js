@@ -76,16 +76,20 @@ io.on('connection', (socket) => {
 
     // Join personal signaling room — and replay any queued calls for this doctor
     socket.on('join-room', (userId) => {
-        socket.join(userId);
-        console.log(`User ${userId} joined their signaling room`);
+        // Force string to prevent ObjectId object being used as room key
+        const roomId = String(userId);
+        socket.join(roomId);
+        console.log(`✅ User [${roomId}] joined signaling room (socket: ${socket.id})`);
 
         // Replay any calls that were queued while doctor was offline
-        const pending = callQueue.get(userId);
+        const pending = callQueue.get(roomId);
         if (pending && pending.length > 0) {
-            console.log(`🔁 Replaying ${pending.length} queued call(s) to doctor ${userId}`);
+            console.log(`🔁 Replaying ${pending.length} queued call(s) to doctor ${roomId}`);
             pending.forEach(callData => {
                 socket.emit('incoming-call', callData);
             });
+        } else {
+            console.log(`📭 No pending calls in queue for ${roomId}`);
         }
     });
 
@@ -110,20 +114,26 @@ io.on('connection', (socket) => {
 
 // Patient calls this to enqueue a call request
 app.post('/api/calls/queue', (req, res) => {
-    const { doctorId, patientId, patientName, channelName } = req.body;
+    let { doctorId, patientId, patientName, channelName } = req.body;
     if (!doctorId || !channelName) {
         return res.status(400).json({ error: 'doctorId and channelName are required' });
     }
-    const callData = { patientId, patientName, channelName };
+    // Force string — doctorId from frontend might be a JSON-serialised ObjectId
+    doctorId = String(doctorId);
+    const callData = { patientId: String(patientId || ''), patientName, channelName };
 
     // Add to persistent queue
     addToQueue(doctorId, callData);
 
-    // Also try to emit immediately to any currently connected doctor sockets
-    io.to(doctorId).emit('incoming-call', callData);
-    console.log(`📞 Call queued & emitted: patient=${patientName} → doctor=${doctorId} ch=${channelName}`);
+    // Check how many sockets are currently in the doctor's room
+    const roomSockets = io.sockets.adapter.rooms.get(doctorId);
+    const socketsInRoom = roomSockets ? roomSockets.size : 0;
+    console.log(`📞 Call queued for doctor=${doctorId} | sockets in room: ${socketsInRoom} | ch=${channelName}`);
 
-    res.json({ success: true, message: 'Call queued and signal sent' });
+    // Emit to any connected doctor sockets
+    io.to(doctorId).emit('incoming-call', callData);
+
+    res.json({ success: true, message: 'Call queued and signal sent', socketsInRoom });
 });
 
 // Doctor (or patient) calls this to remove a call from the queue after accept/decline
