@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import io from 'socket.io-client';
+import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Stethoscope, Video, PhoneCall, Users, Clock, Star,
@@ -44,12 +45,20 @@ export default function DoctorDashboard() {
 
     const acceptCall = () => {
         if (incomingCall?.channelName) {
+            // Remove from server queue so it doesn't replay
+            axios.delete(`${config.API_BASE_URL}/api/calls/queue/${incomingCall.channelName}`)
+                .catch(err => console.error('Failed to dequeue call:', err.message));
             navigate(`/video-call/${incomingCall.channelName}`);
             setIncomingCall(null);
         }
     };
 
     const declineCall = () => {
+        if (incomingCall?.channelName) {
+            // Remove from server queue on decline too
+            axios.delete(`${config.API_BASE_URL}/api/calls/queue/${incomingCall.channelName}`)
+                .catch(err => console.error('Failed to dequeue call:', err.message));
+        }
         setIncomingCall(null);
     };
 

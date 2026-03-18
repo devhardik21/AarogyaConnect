@@ -47,18 +47,51 @@ app.use('/api/auth', authRoutes);
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
+// ─── In-Memory Call Queue ────────────────────────────────────────────────────
+// Maps doctorId → array of pending call objects
+const callQueue = new Map();
+
+const addToQueue = (doctorId, callData) => {
+    const queue = callQueue.get(doctorId) || [];
+    // Avoid duplicates for the same channel
+    if (!queue.find(c => c.channelName === callData.channelName)) {
+        queue.push({ ...callData, timestamp: Date.now() });
+        callQueue.set(doctorId, queue);
+        console.log(`📋 Queued call for doctor ${doctorId} | queue size: ${queue.length}`);
+    }
+};
+
+const removeFromQueue = (channelName) => {
+    for (const [doctorId, queue] of callQueue.entries()) {
+        const filtered = queue.filter(c => c.channelName !== channelName);
+        if (filtered.length !== queue.length) {
+            callQueue.set(doctorId, filtered);
+            console.log(`✅ Removed call ${channelName} from queue for doctor ${doctorId}`);
+        }
+    }
+};
+
 io.on('connection', (socket) => {
     console.log('👤 New Client Connected:', socket.id);
 
-    // Joint room for signaling
+    // Join personal signaling room — and replay any queued calls for this doctor
     socket.on('join-room', (userId) => {
         socket.join(userId);
         console.log(`User ${userId} joined their signaling room`);
+
+        // Replay any calls that were queued while doctor was offline
+        const pending = callQueue.get(userId);
+        if (pending && pending.length > 0) {
+            console.log(`🔁 Replaying ${pending.length} queued call(s) to doctor ${userId}`);
+            pending.forEach(callData => {
+                socket.emit('incoming-call', callData);
+            });
+        }
     });
 
-    // Notify doctor of incoming call
+    // Fallback: patient can still emit directly via socket for immediate delivery
     socket.on('call-doctor', ({ doctorId, patientId, patientName, channelName }) => {
-        console.log(`📡 Forwarding call from patient ${patientId} to doctor ${doctorId}`);
+        console.log(`📡 Socket signal from patient ${patientId} to doctor ${doctorId}`);
         io.to(doctorId).emit('incoming-call', { patientId, patientName, channelName });
     });
 
@@ -71,6 +104,33 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         console.log('Client Disconnected');
     });
+});
+
+// ─── Call Queue REST Endpoints ────────────────────────────────────────────────
+
+// Patient calls this to enqueue a call request
+app.post('/api/calls/queue', (req, res) => {
+    const { doctorId, patientId, patientName, channelName } = req.body;
+    if (!doctorId || !channelName) {
+        return res.status(400).json({ error: 'doctorId and channelName are required' });
+    }
+    const callData = { patientId, patientName, channelName };
+
+    // Add to persistent queue
+    addToQueue(doctorId, callData);
+
+    // Also try to emit immediately to any currently connected doctor sockets
+    io.to(doctorId).emit('incoming-call', callData);
+    console.log(`📞 Call queued & emitted: patient=${patientName} → doctor=${doctorId} ch=${channelName}`);
+
+    res.json({ success: true, message: 'Call queued and signal sent' });
+});
+
+// Doctor (or patient) calls this to remove a call from the queue after accept/decline
+app.delete('/api/calls/queue/:channelName', (req, res) => {
+    const { channelName } = req.params;
+    removeFromQueue(channelName);
+    res.json({ success: true });
 });
 
 // Register Sarvam real-time STT namespace

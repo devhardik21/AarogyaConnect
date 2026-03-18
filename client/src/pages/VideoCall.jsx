@@ -82,24 +82,35 @@ const VideoCallContent = () => {
         if (channelId) {
             fetchToken();
 
-            // --- Signaling Heartbeat (for Patients) ---
-            // We repeat the signal because the doctor might not be on the dashboard 
-            // the exact millisecond the patient joins, or socket might lag.
+            // --- Patient Call Signaling ---
+            // Step 1: POST to server queue — reliable, persisted.
+            //         Server will emit to doctor immediately AND replay on reconnect.
+            // Step 2: Keep a 3s socket fallback ping as an extra fast-path.
             let signalingInterval;
             if (user?.role === 'patient' && targetDoctorId) {
-                console.log(`📡 Starting persistent signal to doctor: ${targetDoctorId}`);
-                const emitSignal = () => {
-                    if (remoteUsers.length === 0) { // Only repeat if no one has joined yet
-                        socket.emit('call-doctor', {
-                            doctorId: targetDoctorId,
-                            patientId: user._id,
-                            patientName: user.name,
-                            channelName: channelId
-                        });
+                const callPayload = {
+                    doctorId: targetDoctorId,
+                    patientId: user._id,
+                    patientName: user.name,
+                    channelName: channelId
+                };
+
+                // Primary: enqueue via HTTP (survives socket race conditions)
+                axios.post(`${config.API_BASE_URL}/api/calls/queue`, callPayload)
+                    .then(() => console.log('📋 Call queued on server successfully'))
+                    .catch(err => console.error('❌ Failed to queue call:', err.message));
+
+                // Fallback heartbeat: re-emit via socket so the doctor gets it quickly
+                // if they're already connected. Stops when remote user joins.
+                const emitSocketSignal = () => {
+                    if (remoteUsers.length === 0) {
+                        socket.emit('call-doctor', callPayload);
+                    } else {
+                        clearInterval(signalingInterval);
                     }
                 };
-                emitSignal(); // Immediate
-                signalingInterval = setInterval(emitSignal, 2000); // Every 2s
+                emitSocketSignal(); // Immediate socket ping
+                signalingInterval = setInterval(emitSocketSignal, 3000);
             }
 
             return () => {
