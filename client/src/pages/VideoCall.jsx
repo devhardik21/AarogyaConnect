@@ -81,12 +81,37 @@ const VideoCallContent = () => {
         if (!client) return;
         const events = ['user-joined', 'user-published', 'user-left', 'exception'];
         events.forEach(en => {
-            client.on(en, (arg) => console.log(`📡 Agora Event [${en}]:`, arg));
+            client.on(en, (arg) => {
+                console.log(`📡 Agora Event [${en}]:`, arg);
+                if (en === 'user-published') {
+                    console.log(`🎥 User ${arg.uid} published ${arg.mediaType}`);
+                }
+            });
         });
         return () => {
             events.forEach(en => client.off(en));
         };
     }, [client]);
+
+    // Track camera track errors
+    useEffect(() => {
+        if (!videoOff && !localCameraTrack) {
+            console.warn("⚠️ Camera track is still null. Check browser permissions or if another app is using it.");
+        }
+    }, [localCameraTrack, videoOff]);
+
+    useEffect(() => {
+        if (remoteUsers.length > 0) {
+            const rUser = remoteUsers[0];
+            console.log("👤 Remote User State:", {
+                uid: rUser.uid,
+                hasVideo: !!rUser.videoTrack,
+                hasAudio: !!rUser.audioTrack,
+                videoMuted: rUser.videoMuted,
+                audioMuted: rUser.audioMuted
+            });
+        }
+    }, [remoteUsers]);
 
     useEffect(() => {
         const fetchToken = async () => {
@@ -169,7 +194,10 @@ const VideoCallContent = () => {
     }, [user?._id]);
 
     useJoin({ appid: APP_ID, channel: channelId, token: agoraToken }, !!agoraToken);
-    usePublish([localMicrophoneTrack, localCameraTrack], !!agoraToken && (!!localMicrophoneTrack || !!localCameraTrack));
+
+    // Filter out null tracks to avoid "INVALID_PARAMS" error in SDK
+    const tracksToPublish = [localMicrophoneTrack, localCameraTrack].filter(track => !!track);
+    usePublish(tracksToPublish, !!agoraToken && tracksToPublish.length > 0);
 
     const handleEndCall = () => {
         navigate('/video');
@@ -259,16 +287,30 @@ const VideoCallContent = () => {
                 {/* --- Temporary Diagnostic Info --- */}
                 <div className="absolute top-20 right-6 z-50 bg-black/60 backdrop-blur-md p-3 rounded-2xl border border-white/10 text-[9px] font-mono space-y-1">
                     <p className={agoraToken ? "text-green-400" : "text-red-400"}>Token: {agoraToken ? "✅ OK" : "❌ Missing"}</p>
-                    <p className={localCameraTrack ? "text-green-400" : "text-red-400"}>Cam: {localCameraTrack ? "✅ OK" : "❌ Err/Blocked"}</p>
+                    <p className={localCameraTrack ? "text-green-400" : "text-yellow-400"}>
+                        Cam: {localCameraTrack ? "✅ OK" : (!videoOff ? "⏳ Requesting/Blocked" : "🌑 Off")}
+                    </p>
                     <p className={remoteUsers.length > 0 ? "text-green-400" : "text-blue-400"}>Remote Users: {remoteUsers.length}</p>
-                    <p className="text-gray-400">UID: {client?.uid || "N/A"}</p>
+                    <p className="text-gray-400 text-[8px]">UID: {client?.uid || "N/A"}</p>
                 </div>
 
                 {/* Video Grid */}
                 <div className="flex-1 relative bg-gray-900 group">
                     {/* Remote User */}
                     {remoteUsers.length > 0 ? (
-                        <RemoteUser user={remoteUsers[0]} className="w-full h-full object-cover" />
+                        <div className="w-full h-full relative">
+                            <RemoteUser
+                                user={remoteUsers[0]}
+                                playVideo={true}
+                                playAudio={true}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                            {!remoteUsers[0].videoTrack && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-gray-800/50 backdrop-blur-sm">
+                                    <p className="text-xs font-bold text-gray-400">Remote user camera off</p>
+                                </div>
+                            )}
+                        </div>
                     ) : (
                         <div className="w-full h-full flex items-center justify-center bg-[#1e293b]">
                             <div className="text-center p-8">
@@ -307,8 +349,12 @@ const VideoCallContent = () => {
 
                     {/* Local User Preview (PIP) */}
                     <div className="absolute bottom-24 right-6 w-32 h-44 bg-black rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl z-20 md:bottom-28">
-                        {!videoOff ? (
-                            <LocalVideoTrack track={localCameraTrack} play className="w-full h-full object-cover" />
+                        {!videoOff && localCameraTrack ? (
+                            <LocalVideoTrack
+                                track={localCameraTrack}
+                                play={true}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center bg-gray-800">
                                 <VideoOff size={24} className="text-gray-600" />
