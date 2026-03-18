@@ -22,11 +22,20 @@ export default function DoctorDashboard() {
 
     // ─── Socket setup ─────────────────────────────────────────────────────
     useEffect(() => {
-        if (user?._id) {
-            const doctorRoomId = String(user._id);
-            console.log(`🔔 Doctor joining signaling room with ID: [${doctorRoomId}] (type: ${typeof user._id})`);
-            socket.emit('join-room', doctorRoomId);
-        }
+        console.log(`📡 Attempting socket connection to: ${config.SOCKET_URL}`);
+
+        socket.on('connect', () => {
+            console.log(`✅ Socket connected: ${socket.id}`);
+            if (user?._id) {
+                const doctorRoomId = String(user._id);
+                console.log(`🔔 Doctor joining signaling room: [${doctorRoomId}]`);
+                socket.emit('join-room', doctorRoomId);
+            }
+        });
+
+        socket.on('connect_error', (err) => {
+            console.error('❌ Socket connection error:', err.message);
+        });
 
         socket.on('incoming-call', (data) => {
             console.log('🔔 Incoming call signal received:', data.channelName);

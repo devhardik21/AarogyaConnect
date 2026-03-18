@@ -126,14 +126,15 @@ app.post('/api/calls/queue', (req, res) => {
     addToQueue(doctorId, callData);
 
     // Check how many sockets are currently in the doctor's room
+    const totalSockets = io.engine.clientsCount;
     const roomSockets = io.sockets.adapter.rooms.get(doctorId);
     const socketsInRoom = roomSockets ? roomSockets.size : 0;
-    console.log(`📞 Call queued for doctor=${doctorId} | sockets in room: ${socketsInRoom} | ch=${channelName}`);
+    console.log(`📞 Call queued for doctor=${doctorId} | total server sockets: ${totalSockets} | sockets in doctor room: ${socketsInRoom} | ch=${channelName}`);
 
     // Emit to any connected doctor sockets
     io.to(doctorId).emit('incoming-call', callData);
 
-    res.json({ success: true, message: 'Call queued and signal sent', socketsInRoom });
+    res.json({ success: true, message: 'Call queued and signal sent', socketsInRoom, totalSockets });
 });
 
 // Doctor (or patient) calls this to remove a call from the queue after accept/decline
