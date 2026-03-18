@@ -8,7 +8,7 @@ import { Mic, Plus, ChevronRight, Volume2, Sparkles, Thermometer, Zap, Wind, Ale
 import { Local_API_URL } from '../api';
 import useTTS from '../hooks/useTTS';
 import config from '../config';
-
+//commenting to redeploy
 // Lightweight markdown renderer for AI responses
 function FormattedMessage({ text }) {
     const lines = text.split('\n');
