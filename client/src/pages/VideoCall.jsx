@@ -11,6 +11,7 @@ import {
     useLocalMicrophoneTrack,
     useRemoteUsers,
     useJoin,
+    usePublish,
     RemoteUser,
     LocalVideoTrack
 } from "agora-rtc-react";
@@ -66,6 +67,14 @@ const VideoCallContent = () => {
     const { localCameraTrack } = useLocalCameraTrack(!videoOff);
     const remoteUsers = useRemoteUsers();
     const client = useRTCClient();
+
+    console.log("🎥 Channel State:", {
+        channelId,
+        hasToken: !!agoraToken,
+        remoteUsersCount: remoteUsers.length,
+        hasLocalMic: !!localMicrophoneTrack,
+        hasLocalCam: !!localCameraTrack
+    });
 
     // Diagnostics: Log Agora events
     useEffect(() => {
@@ -160,6 +169,7 @@ const VideoCallContent = () => {
     }, [user?._id]);
 
     useJoin({ appid: APP_ID, channel: channelId, token: agoraToken }, !!agoraToken);
+    usePublish([localMicrophoneTrack, localCameraTrack], !!agoraToken && (!!localMicrophoneTrack || !!localCameraTrack));
 
     const handleEndCall = () => {
         navigate('/video');
@@ -244,6 +254,14 @@ const VideoCallContent = () => {
                     >
                         <Languages size={14} /> {lang === 'en' ? 'हिंदी' : 'English'}
                     </button>
+                </div>
+
+                {/* --- Temporary Diagnostic Info --- */}
+                <div className="absolute top-20 right-6 z-50 bg-black/60 backdrop-blur-md p-3 rounded-2xl border border-white/10 text-[9px] font-mono space-y-1">
+                    <p className={agoraToken ? "text-green-400" : "text-red-400"}>Token: {agoraToken ? "✅ OK" : "❌ Missing"}</p>
+                    <p className={localCameraTrack ? "text-green-400" : "text-red-400"}>Cam: {localCameraTrack ? "✅ OK" : "❌ Err/Blocked"}</p>
+                    <p className={remoteUsers.length > 0 ? "text-green-400" : "text-blue-400"}>Remote Users: {remoteUsers.length}</p>
+                    <p className="text-gray-400">UID: {client?.uid || "N/A"}</p>
                 </div>
 
                 {/* Video Grid */}
