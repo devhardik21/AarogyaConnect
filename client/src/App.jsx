@@ -10,6 +10,7 @@ import VideoCall from './pages/VideoCall';
 import InteractiveRegistration from './pages/InteractiveRegistration';
 import RegisterDoctor from './pages/RegisterDoctor';
 import DoctorDashboard from './pages/DoctorDashboard';
+import LandingPage from './pages/LandingPage';
 import BottomNav from './components/BottomNav';
 import { AnimatePresence } from 'framer-motion';
 import { useAuth } from './context/AuthContext';
@@ -46,15 +47,7 @@ function AnimatedRoutes() {
         <Route path="/video-call/:channelId" element={user ? <VideoCall /> : <Navigate to="/login/patient" />} />
 
         {/* Default redirect based on role */}
-        <Route
-          path="/"
-          element={
-            <Navigate
-              to={!user ? '/login/patient' : isDoctor ? '/doctor' : '/ai-doctor'}
-              replace
-            />
-          }
-        />
+        <Route path="/" element={<LandingPage />} />
       </Routes>
     </AnimatePresence>
   );

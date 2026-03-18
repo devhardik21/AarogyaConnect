@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Mic, Plus, ChevronRight, Volume2, Sparkles, Thermometer, Zap, Wind, AlertCircle, Frown, MapPin, X, ScanLine } from 'lucide-react';
 import { Local_API_URL } from '../api';
 import useTTS from '../hooks/useTTS';
+import config from '../config';
 
 // Lightweight markdown renderer for AI responses
 function FormattedMessage({ text }) {
@@ -209,7 +210,7 @@ export default function AIDoctorTab() {
         setIsTyping(true);
 
         try {
-            const res = await axios.post(`${Local_API_URL}/api/ai/chat`, {
+            const res = await axios.post(`${config.API_BASE_URL}/api/ai/chat`, {
                 message: text,
                 userContext: user?.profile
             });
@@ -247,7 +248,7 @@ export default function AIDoctorTab() {
                     const base64Audio = reader.result.split(',')[1];
                     setIsTyping(true);
                     try {
-                        const res = await axios.post(`${Local_API_URL}/api/ai/stt`, {
+                        const res = await axios.post(`${config.API_BASE_URL}/api/ai/stt`, {
                             audio_content: base64Audio,
                             language_code: 'hi-IN'
                         });
@@ -314,7 +315,7 @@ export default function AIDoctorTab() {
         setIsTyping(true);
 
         try {
-            const res = await axios.post(`${Local_API_URL}/api/ai/body-analysis`, {
+            const res = await axios.post(`${config.API_BASE_URL}/api/ai/body-analysis`, {
                 bodyParts: selectedParts,
                 zones: selectedZones,
                 partsSummary,

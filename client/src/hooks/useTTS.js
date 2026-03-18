@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { Local_API_URL } from '../api';
+import config from '../config';
 
 /**
  * useTTS — Sarvam Bulbul v3 Text-to-Speech hook
@@ -42,7 +43,7 @@ const useTTS = () => {
         setIsSpeaking(true);
 
         try {
-            const response = await fetch(`${Local_API_URL}/api/ai/tts`, {
+            const response = await fetch(`${config.API_BASE_URL}/api/ai/tts`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text, language, speaker }),

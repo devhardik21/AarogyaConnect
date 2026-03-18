@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { User, Mail, Lock, HeartPulse, ChevronRight, ChevronLeft, CheckCircle, Baby, Scale, Ruler, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-
+import config from '../config';
 const STEPS = [
     { id: 'account', title: 'Basic Info', icon: User },
     { id: 'physical', title: 'Vital Stats', icon: Scale },
@@ -52,7 +52,7 @@ export default function InteractiveRegistration() {
 
     const handleRegister = async () => {
         try {
-            const res = await axios.post('http://localhost:5000/api/auth/register', {
+            const res = await axios.post(`${config.API_BASE_URL}/api/auth/register`, {
                 name: formData.name,
                 email: formData.email,
                 password: formData.password,
