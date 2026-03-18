@@ -125,8 +125,17 @@ const VideoCallContent = () => {
     useEffect(() => {
         if (!user?._id) return;
 
-        socket.emit('join-room', user._id);
-        console.log(`🔌 Local user joined signaling room: ${user._id}`);
+        const joinRoom = () => {
+            socket.emit('join-room', user._id);
+            console.log(`🔌 Local user joined signaling room: ${user._id} (socket: ${socket.id})`);
+        };
+
+        // If already connected (race condition fix), join immediately
+        if (socket.connected) {
+            joinRoom();
+        }
+        // Also listen for future (re)connects
+        socket.on('connect', joinRoom);
 
         // Doctor listens for data
         const dataHandler = (patientData) => {
@@ -136,6 +145,7 @@ const VideoCallContent = () => {
         socket.on('patient-data', dataHandler);
 
         return () => {
+            socket.off('connect', joinRoom);
             socket.off('patient-data', dataHandler);
         };
     }, [user?._id]);

@@ -11,7 +11,12 @@ import {
 } from 'lucide-react';
 import config from '../config';
 
-const socket = io(config.SOCKET_URL);
+const socket = io(config.SOCKET_URL, {
+    transports: ['websocket', 'polling'],
+    reconnection: true,
+    reconnectionAttempts: 10,
+    reconnectionDelay: 2000
+});
 
 export default function DoctorDashboard() {
     const { user, logout } = useAuth();
@@ -22,16 +27,21 @@ export default function DoctorDashboard() {
 
     // ─── Socket setup ─────────────────────────────────────────────────────
     useEffect(() => {
-        console.log(`📡 Attempting socket connection to: ${config.SOCKET_URL}`);
+        if (!user?._id) return;
+        const doctorRoomId = String(user._id);
 
-        socket.on('connect', () => {
+        const joinRoom = () => {
             console.log(`✅ Socket connected: ${socket.id}`);
-            if (user?._id) {
-                const doctorRoomId = String(user._id);
-                console.log(`🔔 Doctor joining signaling room: [${doctorRoomId}]`);
-                socket.emit('join-room', doctorRoomId);
-            }
-        });
+            console.log(`🔔 Doctor joining signaling room: [${doctorRoomId}]`);
+            socket.emit('join-room', doctorRoomId);
+        };
+
+        // If already connected (race condition fix), join immediately
+        if (socket.connected) {
+            joinRoom();
+        }
+        // Also listen for future (re)connects
+        socket.on('connect', joinRoom);
 
         socket.on('connect_error', (err) => {
             console.error('❌ Socket connection error:', err.message);
@@ -49,6 +59,8 @@ export default function DoctorDashboard() {
         });
 
         return () => {
+            socket.off('connect', joinRoom);
+            socket.off('connect_error');
             socket.off('incoming-call');
         };
     }, [user]);
@@ -116,6 +128,16 @@ export default function DoctorDashboard() {
                         >
                             <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`} />
                             {isOnline ? 'Online' : 'Offline'}
+                        </button>
+                        <button
+                            onClick={() => {
+                                console.log('🔄 Manual Socket Reconnect initiated...');
+                                socket.disconnect().connect();
+                            }}
+                            className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-blue-400 hover:bg-blue-500/10 transition-all"
+                            title="Reset Connection"
+                        >
+                            <Power size={16} />
                         </button>
                         <button
                             onClick={handleLogout}
