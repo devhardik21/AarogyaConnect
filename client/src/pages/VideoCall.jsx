@@ -29,7 +29,9 @@ const socket = io(config.SOCKET_URL);
 const APP_ID = import.meta.env.VITE_AGORA_APP_ID || "PASTE_YOUR_APP_ID_HERE";
 
 const VideoCallWrapper = () => {
-    const client = useRTCClient(AgoraRTC.createClient({ codec: "vp8", mode: "rtc" }));
+    // Create the client once and keep it stable across re-renders
+    const client = useRTCClient(useMemo(() => AgoraRTC.createClient({ codec: "vp8", mode: "rtc" }), []));
+
     return (
         <AgoraRTCProvider client={client}>
             <VideoCallContent />
@@ -61,6 +63,16 @@ const VideoCallContent = () => {
     const [sharedData, setSharedData] = useState(null);
     const [agoraToken, setAgoraToken] = useState(null);
     const [isConnecting, setIsConnecting] = useState(true);
+
+    // Consistent Integer UID for Agora (must be < 4294967295)
+    // The error message specifically mentioned [0, 65535], 
+    // so we use the last 4 hex characters of the MongoDB ID.
+    const uid = useMemo(() => {
+        if (user?._id) {
+            return parseInt(user._id.slice(-4), 16) || Math.floor(Math.random() * 10000) + 1;
+        }
+        return Math.floor(Math.random() * 10000) + 1;
+    }, [user?._id]);
 
     // Agora Hooks
     const { localMicrophoneTrack } = useLocalMicrophoneTrack(!muted);
@@ -193,7 +205,13 @@ const VideoCallContent = () => {
         };
     }, [user?._id]);
 
-    useJoin({ appid: APP_ID, channel: channelId, token: agoraToken }, !!agoraToken);
+    // Join the channel with our stable UID
+    useJoin({
+        appid: APP_ID,
+        channel: channelId,
+        token: agoraToken,
+        uid: uid
+    }, !!agoraToken);
 
     // Filter out null tracks to avoid "INVALID_PARAMS" error in SDK
     const tracksToPublish = [localMicrophoneTrack, localCameraTrack].filter(track => !!track);

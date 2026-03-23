@@ -46,6 +46,14 @@ export default defineConfig({
 
         runtimeCaching: [
           {
+            // NEW: Exclude Agora domains from being intercepted by SW
+            urlPattern: ({ url }) =>
+              url.host.includes('agora.io') ||
+              url.host.includes('sd-rtn.com') ||
+              url.host.includes('edge.agora.io'),
+            handler: 'NetworkOnly',
+          },
+          {
             urlPattern: ({ request }) => request.destination === 'image',
             handler: 'CacheFirst',
             options: {
