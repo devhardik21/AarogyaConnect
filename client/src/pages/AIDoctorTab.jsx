@@ -108,19 +108,26 @@ const SYMPTOMS = [
 /**
  * TTS Language Picker
  */
-function TTSPicker({ message, onClose }) {
-    const { speak, isSpeaking } = useTTS();
-
+function TTSPicker({ message, onClose, speak, isSpeaking, isProcessing }) {
     const handleSpeak = async (lang) => {
         let text;
-        let sarvamLang;
+        let sarvamLang = 'hi-IN'; // Sarvam expects hi-IN for Hindi/Chhattisgarhi
+
+        console.log(`[TTSPicker] Requesting ${lang} for message:`, message);
+
         if (lang === 'hi-IN') {
             text = message.reply_hindi || message.text;
-            sarvamLang = 'hi-IN';
         } else {
+            // Chhattisgarhi fallback
             text = message.reply_chhattisgarhi || message.reply_hindi || message.text;
-            sarvamLang = 'hi-IN';
         }
+
+        if (!text) {
+            console.warn(`[TTSPicker] No text found for ${lang}, aborting speak.`);
+            return;
+        }
+
+        console.log(`[TTSPicker] Speaking "${text.slice(0, 30)}..." in ${sarvamLang}`);
         onClose();
         await speak(text, sarvamLang);
     };
@@ -154,6 +161,7 @@ function TTSPicker({ message, onClose }) {
 
 export default function AIDoctorTab() {
     const { user } = useAuth();
+    const { speak, stop, isSpeaking, isProcessing } = useTTS();
     const [step, setStep] = useState('chat');
     const [messages, setMessages] = useState([]);
     const [inputText, setInputText] = useState('');
@@ -324,7 +332,9 @@ export default function AIDoctorTab() {
             });
 
             setIsTyping(false);
-            const { analysis, recommendations, urgency, capturedImageBase64 } = res.data;
+            const { analysis, recommendations, urgency, capturedImageBase64, reply_hindi, reply_chhattisgarhi } = res.data;
+
+            console.log("🩻 [Body Analysis] Received:", { analysis, reply_hindi, reply_chhattisgarhi });
 
             pushMessage('ai', analysis, {
                 isBodyCard: true,
@@ -333,6 +343,8 @@ export default function AIDoctorTab() {
                 partsSummary,
                 recommendations,
                 urgency,
+                reply_hindi,
+                reply_chhattisgarhi,
                 capturedImageBase64: imageBase64, // show the captured image in chat
             });
         } catch (err) {
@@ -363,6 +375,29 @@ export default function AIDoctorTab() {
                         <h1 className="font-bold text-gray-900 text-sm leading-tight">Arogya AI</h1>
                         <p className="text-xs text-gray-400 truncate">Describe feel, AI will guide you step-by-step</p>
                     </div>
+
+                    {/* Sound / Loading Indicator */}
+                    {(isSpeaking || isProcessing) && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-50 border border-green-100 mr-2"
+                        >
+                            {isProcessing ? (
+                                <div className="flex gap-1">
+                                    <div className="w-1 h-3 bg-green-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                                    <div className="w-1 h-3 bg-green-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                                    <div className="w-1 h-3 bg-green-500 rounded-full animate-bounce" />
+                                </div>
+                            ) : (
+                                <Volume2 size={14} className="text-green-600 animate-pulse" />
+                            )}
+                            <span className="text-[10px] font-bold text-green-700 uppercase tracking-tight">
+                                {isProcessing ? 'Converting...' : 'Speaking...'}
+                            </span>
+                        </motion.div>
+                    )}
+
                     <button className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors">
                         ✕
                     </button>
@@ -382,7 +417,7 @@ export default function AIDoctorTab() {
                         className="flex-1 flex flex-col overflow-hidden"
                     >
                         {/* ─── Scrollable Chat Area ─── */}
-                        <div className="flex-1 overflow-y-auto px-5 py-4 hide-scrollbar">
+                        <div className="flex-1 overflow-y-auto px-5 py-4">
 
                             {/* Welcome block */}
                             <div className="mb-6">
@@ -404,7 +439,7 @@ export default function AIDoctorTab() {
                                     <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                         {/* ─── Body Analysis Card ─── */}
                                         {msg.isBodyCard ? (
-                                            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-3xl p-4 max-w-[95%] w-full shadow-sm">
+                                            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-3xl p-4 max-w-[95%] md:max-w-[80%] w-full shadow-sm relative group">
                                                 {/* Header */}
                                                 <div className="flex items-center gap-2 mb-3">
                                                     <span className="text-lg">🩻</span>
@@ -462,9 +497,34 @@ export default function AIDoctorTab() {
                                                         </ul>
                                                     </div>
                                                 )}
+
+                                                {/* TTS Button — for Body Cards too */}
+                                                <div className="tts-picker-anchor absolute -right-4 md:-right-10 top-1/2 -translate-y-1/2">
+                                                    <button
+                                                        onClick={() => setActiveTTSIndex(activeTTSIndex === i ? null : i)}
+                                                        className={`p-2 rounded-full transition-all ${activeTTSIndex === i
+                                                            ? 'bg-blue-600 text-white shadow-md'
+                                                            : 'bg-white text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 border border-blue-100 shadow-sm'
+                                                            }`}
+                                                    >
+                                                        <Volume2 size={16} />
+                                                    </button>
+
+                                                    <AnimatePresence>
+                                                        {activeTTSIndex === i && (
+                                                            <TTSPicker
+                                                                message={msg}
+                                                                speak={speak}
+                                                                isSpeaking={isSpeaking}
+                                                                isProcessing={isProcessing}
+                                                                onClose={() => setActiveTTSIndex(null)}
+                                                            />
+                                                        )}
+                                                    </AnimatePresence>
+                                                </div>
                                             </div>
                                         ) : (
-                                            <div className="flex flex-col gap-2 max-w-[85%]">
+                                            <div className="flex flex-col gap-2 max-w-[85%] md:max-w-[70%]">
                                                 <div className={`px-4 py-3 rounded-3xl text-sm leading-relaxed shadow-sm relative group ${msg.role === 'user'
                                                     ? 'bg-green-500 text-white rounded-br-lg'
                                                     : 'bg-gray-100 text-gray-800 rounded-bl-lg'
@@ -490,6 +550,9 @@ export default function AIDoctorTab() {
                                                                 {activeTTSIndex === i && (
                                                                     <TTSPicker
                                                                         message={msg}
+                                                                        speak={speak}
+                                                                        isSpeaking={isSpeaking}
+                                                                        isProcessing={isProcessing}
                                                                         onClose={() => setActiveTTSIndex(null)}
                                                                     />
                                                                 )}
@@ -542,7 +605,7 @@ export default function AIDoctorTab() {
                                     className="mb-4"
                                 >
                                     <p className="text-xs text-gray-400 mb-3 font-medium uppercase tracking-wide">Quick symptoms</p>
-                                    <div className="grid grid-cols-2 gap-2.5">
+                                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5">
                                         {SYMPTOMS.map((s) => {
                                             const Icon = s.Icon;
                                             return (
@@ -562,7 +625,7 @@ export default function AIDoctorTab() {
                                         {/* Locate pain CTA */}
                                         <button
                                             onClick={() => setStep('body')}
-                                            className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 shadow-sm hover:bg-green-100 active:scale-95 transition-all col-span-2"
+                                            className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 shadow-sm hover:bg-green-100 active:scale-95 transition-all col-span-2 lg:col-span-1"
                                         >
                                             <div className="w-8 h-8 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
                                                 <MapPin size={16} className="text-green-700" />
@@ -623,25 +686,31 @@ export default function AIDoctorTab() {
                         transition={{ duration: 0.25 }}
                         className="flex-1 flex flex-col overflow-hidden"
                     >
-                        <div className="flex-1 overflow-y-auto px-5 py-4 hide-scrollbar" ref={bodyCaptureDivRef}>
+                        <div className="flex-1 overflow-y-auto px-5 py-4" ref={bodyCaptureDivRef}>
                             <button
                                 onClick={() => setStep('chat')}
                                 className="text-sm text-gray-400 mb-4 hover:text-gray-600 transition-colors flex items-center gap-1"
                             >
                                 ← Back
                             </button>
-                            <h2 className="text-xl font-bold text-gray-900 mb-1 leading-snug">
-                                Where exactly is the<br />pain or issue?
-                            </h2>
-                            <p className="text-xs text-gray-400 mb-5 font-medium">Select one or more body areas</p>
+                            <div className="flex-1 md:flex md:gap-8 md:items-start">
+                                <div className="md:w-1/3">
+                                    <h2 className="text-xl font-bold text-gray-900 mb-1 leading-snug">
+                                        Where exactly is the<br />pain or issue?
+                                    </h2>
+                                    <p className="text-xs text-gray-400 mb-5 font-medium">Select one or more body areas</p>
+                                </div>
 
-                            <BodySelector
-                                selectedParts={selectedParts}
-                                setSelectedParts={setSelectedParts}
-                                selectedZones={selectedZones}
-                                setSelectedZones={setSelectedZones}
-                                captureRef={bodyCaptureDivRef}
-                            />
+                                <div className="flex-1 relative min-h-[400px]">
+                                    <BodySelector
+                                        selectedParts={selectedParts}
+                                        setSelectedParts={setSelectedParts}
+                                        selectedZones={selectedZones}
+                                        setSelectedZones={setSelectedZones}
+                                        captureRef={bodyCaptureDivRef}
+                                    />
+                                </div>
+                            </div>
                         </div>
 
                         <div className="flex-shrink-0 px-5 pb-6 pt-2 bg-white border-t border-gray-100">

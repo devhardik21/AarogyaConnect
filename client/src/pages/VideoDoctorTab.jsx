@@ -83,7 +83,7 @@ export default function VideoDoctorTab() {
                 </div>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-6 max-w-6xl mx-auto w-full">
                 <div className="flex items-center justify-between">
                     <h3 className="font-bold text-gray-800 text-lg">Available Doctors</h3>
                     <span className="text-xs font-bold text-green-600 bg-green-50 px-3 py-1 rounded-full uppercase tracking-wider">
@@ -91,59 +91,59 @@ export default function VideoDoctorTab() {
                     </span>
                 </div>
 
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
                     {filteredDoctors.map((doc, idx) => (
                         <motion.div
                             key={doc.id}
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: idx * 0.1 }}
-                            className="bg-white p-5 rounded-[2rem] shadow-sm border border-gray-100 hover:shadow-md transition-all group"
+                            className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 hover:shadow-md transition-all group flex flex-col"
                         >
                             <div className="flex gap-4 mb-5">
-                                <div className={`relative w-16 h-16 rounded-2xl bg-${doc.color}-100 flex items-center justify-center shrink-0`}>
-                                    <span className={`text-${doc.color}-600 font-black text-xl`}>{doc.name[4]}</span>
+                                <div className={`relative w-20 h-20 rounded-2xl bg-${doc.color}-100 flex items-center justify-center shrink-0`}>
+                                    <span className={`text-${doc.color}-600 font-black text-2xl`}>{doc.name[4]}</span>
                                     {doc.status === 'Online' && (
-                                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full animate-pulse"></div>
+                                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 border-2 border-white rounded-full animate-pulse"></div>
                                     )}
                                 </div>
                                 <div className="flex-1">
                                     <div className="flex justify-between items-start">
                                         <div>
-                                            <h4 className="font-extrabold text-gray-900 text-lg group-hover:text-green-600 transition-colors">{doc.name}</h4>
-                                            <p className="text-green-600 font-bold text-sm">{doc.spec}</p>
+                                            <h4 className="font-extrabold text-gray-900 text-xl group-hover:text-green-600 transition-colors tracking-tight">{doc.name}</h4>
+                                            <p className="text-green-600 font-bold text-sm tracking-wide">{doc.spec}</p>
                                         </div>
-                                        <div className="flex items-center gap-1 bg-yellow-50 px-2 py-0.5 rounded-lg border border-yellow-100">
+                                        <div className="flex items-center gap-1.5 bg-yellow-50 px-3 py-1 rounded-[1rem] border border-yellow-100 shadow-sm">
                                             <Star className="text-yellow-500 fill-yellow-500" size={14} />
-                                            <span className="text-xs font-bold text-yellow-700">{doc.rating}</span>
+                                            <span className="text-xs font-black text-yellow-700">{doc.rating}</span>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-3 mt-2 text-gray-500 text-xs font-semibold">
-                                        <span className="flex items-center gap-1"><ShieldCheck size={14} /> {doc.exp}</span>
-                                        <span className="flex items-center gap-1"><MapPin size={14} /> Durg, CG</span>
+                                    <div className="flex items-center gap-4 mt-3 text-gray-500 text-[11px] font-bold uppercase tracking-widest">
+                                        <span className="flex items-center gap-1.5"><ShieldCheck size={14} className="text-blue-500" /> {doc.exp}</span>
+                                        <span className="flex items-center gap-1.5"><MapPin size={14} className="text-red-400" /> Durg, CG</span>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="flex gap-3">
+                            <div className="flex gap-3 mt-auto">
                                 <button
                                     onClick={() => doc.status === 'Online' && startCall(doc.id)}
-                                    className={`flex-[2] py-4 rounded-2xl font-bold flex justify-center items-center gap-2 transition shadow-lg ${doc.status === 'Online'
-                                        ? 'bg-green-600 text-white hover:bg-green-700 shadow-green-100 active:scale-[0.98]'
+                                    className={`flex-[2] py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex justify-center items-center gap-2 transition shadow-xl ${doc.status === 'Online'
+                                        ? 'bg-green-600 text-white hover:bg-green-700 shadow-green-100 active:scale-95'
                                         : 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
                                         }`}
                                 >
                                     <Video size={18} fill="currentColor" />
                                     {doc.status === 'Online' ? 'Start Consultation' : 'Doctor Busy'}
                                 </button>
-                                <button className="flex-1 bg-gray-50 text-gray-700 py-4 rounded-2xl font-bold flex justify-center items-center gap-2 hover:bg-gray-100 transition border border-gray-100 active:scale-[0.98]">
+                                <button className="flex-1 bg-gray-50 text-gray-700 py-4 rounded-2xl font-bold flex justify-center items-center gap-2 hover:bg-gray-100 transition border border-gray-100 active:scale-95">
                                     <PhoneCall size={18} />
                                 </button>
                             </div>
 
-                            <div className="mt-4 pt-4 border-t border-dashed border-gray-100 flex justify-between items-center">
-                                <p className="text-xs text-gray-500 font-medium">Consultation Fee: <span className="text-gray-900 font-bold">{doc.fee}</span></p>
-                                <p className="text-xs text-gray-500 font-medium">{doc.reviews} Verified Reviews</p>
+                            <div className="mt-5 pt-5 border-t border-dashed border-gray-100 flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                <p>Consultation Fee: <span className="text-gray-900">{doc.fee}</span></p>
+                                <p>{doc.reviews} Verified Reviews</p>
                             </div>
                         </motion.div>
                     ))}

@@ -7,7 +7,7 @@ export default function EventsTab() {
     ];
 
     return (
-        <div className="flex flex-col h-full bg-gray-50 p-4 pb-24">
+        <div className="flex flex-col h-full bg-gray-50 p-4 pb-24 overflow-y-auto">
             <h2 className="text-2xl font-bold text-gray-800 mb-6">Nearby Health Camps</h2>
 
             <div className="space-y-4">

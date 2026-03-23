@@ -12,6 +12,7 @@ import config from '../config';
  */
 const useTTS = () => {
     const [isSpeaking, setIsSpeaking] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
     const audioRef = useRef(null);
     const requestVersionRef = useRef(0);
 
@@ -23,6 +24,7 @@ const useTTS = () => {
             audioRef.current = null;
         }
         setIsSpeaking(false);
+        setIsProcessing(false);
     }, []);
 
     /**
@@ -40,6 +42,7 @@ const useTTS = () => {
         }
 
         const currentVersion = ++requestVersionRef.current;
+        setIsProcessing(true);
         setIsSpeaking(true);
 
         try {
@@ -55,6 +58,8 @@ const useTTS = () => {
             const data = await response.json();
             const audioBase64 = data.audio;
             if (!audioBase64) throw new Error('No audio data received');
+
+            setIsProcessing(false);
 
             // Decode base64 WAV → Blob → Object URL → Audio element
             const byteCharacters = atob(audioBase64);
@@ -92,11 +97,12 @@ const useTTS = () => {
             console.error('[TTS] Error:', error);
             if (currentVersion === requestVersionRef.current) {
                 setIsSpeaking(false);
+                setIsProcessing(false);
             }
         }
     }, [isSpeaking, stop]);
 
-    return { speak, stop, isSpeaking };
+    return { speak, stop, isSpeaking, isProcessing };
 };
 
 export default useTTS;

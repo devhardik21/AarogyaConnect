@@ -59,8 +59,8 @@ function App() {
 
   return (
     <Router>
-      <div className="fixed inset-0 flex justify-center bg-gray-200">
-        <div className="relative w-full max-w-md h-full bg-white flex flex-col shadow-2xl overflow-hidden">
+      <div className="fixed inset-0 flex justify-center bg-gradient-to-br from-gray-50 to-gray-200 overflow-hidden">
+        <div className="relative w-full max-w-md md:max-w-4xl lg:max-w-6xl h-full bg-white flex flex-col shadow-2xl overflow-hidden transition-all duration-500 ease-in-out md:my-4 md:h-[calc(100%-2rem)] md:rounded-[2rem]">
           <div className="flex-1 overflow-hidden">
             <AnimatedRoutes />
           </div>

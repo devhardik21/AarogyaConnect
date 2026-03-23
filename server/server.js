@@ -298,7 +298,7 @@ app.post('/api/ai/body-analysis', async (req, res) => {
             return res.status(400).json({ error: 'bodyParts is required' });
         }
 
-        console.log(`🩻 Body analysis requested for: ${partsSummary}`);
+        console.log(`🩻 [Body Analysis] Requested for: ${partsSummary}`);
 
         const systemPrompt = `
 You are Arogya AI, a rural healthcare assistant for India.
@@ -306,12 +306,19 @@ A patient has selected the following body areas where they have pain or symptoms
 User health context: ${JSON.stringify(userContext || {})}.
 
 Analyse these regions from both the visual body diagram (if provided) and the named areas.
-Provide a compassionate, practical response in English.
+Provide a compassionate, practical response.
+
+IMPORTANT – You must respond in THREE languages:
+- analysis: Plain English response (2-3 sentences explaining causes simple for rural patient)
+- reply_hindi: The same analysis translated to Hindi (Devanagari script)
+- reply_chhattisgarhi: The same analysis translated to Chhattisgarhi dialect (Devanagari script, Chhattisgarhi words like "tola", "mohar", "tor", "ka hoe", etc.)
 
 Respond STRICTLY as a JSON object with no markdown:
 {
-  "analysis": "2-3 sentences explaining what might be causing pain in these specific areas, written simply for a rural patient",
-  "recommendations": ["3-4 short actionable recommendations as an array of strings"],
+  "analysis": "English analysis here",
+  "reply_hindi": "हिंदी में विश्लेषण यहाँ",
+  "reply_chhattisgarhi": "छत्तीसगढ़ी में विश्लेषण इहाँ",
+  "recommendations": ["3-4 short actionable recommendations as an array of strings in English"],
   "urgency": "low | medium | high",
   "desi_remedy": "One simple home remedy relevant for these body areas (optional)"
 }
@@ -335,19 +342,25 @@ Respond STRICTLY as a JSON object with no markdown:
 
         const result = await model.generateContent(parts);
         const responseText = result.response.text();
-        console.log('🩻 Body Analysis Response:', responseText);
+        console.log('🩻 [Body Analysis] Gemini raw response length:', responseText.length);
 
         try {
             const cleanJson = responseText.replace(/```json|```/g, '').trim();
             const parsed = JSON.parse(cleanJson);
-            console.log('✅ Body analysis parsed successfully');
+            console.log('✅ [Body Analysis] Parsed successfully');
             res.json(parsed);
         } catch (e) {
-            console.warn('⚠️ Body analysis response was not valid JSON');
-            res.json({ analysis: responseText, recommendations: [], urgency: 'medium' });
+            console.warn('⚠️ [Body Analysis] Response was not valid JSON, sending English fallback');
+            res.json({
+                analysis: responseText,
+                reply_hindi: responseText,
+                reply_chhattisgarhi: responseText,
+                recommendations: [],
+                urgency: 'medium'
+            });
         }
     } catch (error) {
-        console.error('Body Analysis Error:', error);
+        console.error('❌ [Body Analysis] Error:', error);
         res.status(500).json({ error: 'Body analysis failed: ' + error.message });
     }
 });

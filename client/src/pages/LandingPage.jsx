@@ -34,7 +34,7 @@ export default function LandingPage() {
     ];
 
     return (
-        <div className="h-full flex flex-col items-center justify-center p-6 bg-gradient-to-br from-green-50 to-blue-50">
+        <div className="h-full flex flex-col items-center justify-center p-6 bg-gradient-to-br from-green-50 to-blue-50 overflow-y-auto">
             {/* Header / Logo */}
             <motion.div
                 initial={{ opacity: 0, y: -20 }}
@@ -68,35 +68,35 @@ export default function LandingPage() {
             </motion.div>
 
             {/* Main Selection */}
-            <div className="w-full max-w-sm space-y-4">
+            <div className="w-full max-w-sm md:max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-6">
                 {sections.map((section, idx) => (
                     <motion.div
                         key={section.title}
                         initial={{ opacity: 0, x: idx % 2 === 0 ? -20 : 20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.2 + idx * 0.1 }}
-                        className="bg-white/80 backdrop-blur-md border border-white/50 rounded-[2.5rem] p-6 shadow-xl shadow-gray-200/50"
+                        className="bg-white/80 backdrop-blur-md border border-white/50 rounded-[3rem] p-8 shadow-xl shadow-gray-200/50 flex flex-col"
                     >
-                        <div className="flex items-center gap-4 mb-4">
-                            <div className={`p-3 ${section.lightColor} rounded-2xl`}>
-                                <section.icon className={section.iconColor} size={24} />
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className={`p-4 ${section.lightColor} rounded-2xl`}>
+                                <section.icon className={section.iconColor} size={28} />
                             </div>
                             <div>
-                                <h2 className="text-xl font-black text-gray-900 leading-tight">{section.title}</h2>
-                                <p className="text-xs text-gray-500 font-medium">{section.subtitle}</p>
+                                <h2 className="text-2xl font-black text-gray-900 leading-tight">{section.title}</h2>
+                                <p className="text-sm text-gray-500 font-medium">{section.subtitle}</p>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-2 gap-4 mt-auto">
                             <button
                                 onClick={() => navigate(section.loginPath)}
-                                className={`py-4 ${section.color} ${section.hoverColor} text-white rounded-2xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-${section.color.split('-')[1]}-100`}
+                                className={`py-4 ${section.color} ${section.hoverColor} text-white rounded-[1.5rem] font-bold transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-gray-200`}
                             >
                                 Login
                             </button>
                             <button
                                 onClick={() => navigate(section.registerPath)}
-                                className={`py-4 ${section.lightColor} ${section.textColor} border border-${section.color.split('-')[1]}-100 rounded-2xl font-bold transition-all hover:bg-white active:scale-95 flex items-center justify-center gap-2`}
+                                className={`py-4 ${section.lightColor} ${section.textColor} border border-transparent rounded-[1.5rem] font-bold transition-all hover:bg-white active:scale-95 flex items-center justify-center gap-2`}
                             >
                                 Register <ArrowRight size={16} />
                             </button>

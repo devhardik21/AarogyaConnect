@@ -2,7 +2,7 @@ import { AlertTriangle, Siren } from 'lucide-react';
 
 export default function EmergencyTab() {
     return (
-        <div className="flex flex-col h-full bg-red-50 p-6 pb-24 items-center justify-center relative overflow-hidden">
+        <div className="flex flex-col h-full bg-red-50 p-6 pb-24 items-center justify-center relative overflow-y-auto">
             <div className="w-full max-w-sm relative z-10 text-center">
                 <div className="mx-auto w-24 h-24 bg-red-100 rounded-full flex items-center justify-center text-red-600 mb-6 animate-pulse">
                     <AlertTriangle size={48} />
