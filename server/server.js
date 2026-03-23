@@ -10,6 +10,7 @@ import mongoose from 'mongoose';
 import symptomRoutes from './routes/symptomRoutes.js';
 import doctorRoutes from './routes/doctorRoutes.js';
 import vitalRoutes from './routes/vitalRoutes.js';
+import emergencyRoutes from './routes/emergencyRoutes.js';
 const { RtcTokenBuilder, RtcRole } = pkg;
 import axios from 'axios';
 import dotenv from 'dotenv';
@@ -42,6 +43,7 @@ app.use('/api/symptoms', symptomRoutes);
 app.use('/api/doctors', doctorRoutes);
 app.use('/api/vitals', vitalRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/emergency', emergencyRoutes);
 
 // ─── AI & Socket Setup ───────────────────────────────────────────────────────
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
